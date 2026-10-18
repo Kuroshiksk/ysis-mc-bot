@@ -491,9 +491,12 @@ client.on("interactionCreate", async interaction => {
 
     if (cmd === "avatar") {
       const usuario = interaction.options.getUser("usuario") || interaction.user;
-      const embed = criarEmbed(`🖼️ Avatar de ${usuario.username}`, null)
-        .setImage(usuario.displayAvatarURL({ size: 1024, extension: "png" }));
-      return interaction.reply({ embeds: [embed] });
+      const embed = new EmbedBuilder()
+  .setColor(0x55ff55)
+  .setTitle(`🖼️ Avatar de ${usuario.username}`)
+  .setImage(usuario.displayAvatarURL({ size: 1024 }))
+  .setFooter({ text: "YSIS MC • Feito com carinho" })
+  .setTimestamp();
     }
 
     if (cmd === "perfil") {
