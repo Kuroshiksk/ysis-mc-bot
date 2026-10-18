@@ -13,7 +13,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 // ==========================================
-// CONFIGURAÇÃO DO YSIS MC
+// CONFIGURAÇÃO
 // ==========================================
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -29,7 +29,7 @@ const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
 const GOODBYE_CHANNEL_ID = process.env.GOODBYE_CHANNEL_ID;
 
 if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
-  console.error("ERRO: configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID nas variáveis de ambiente.");
+  console.error("ERRO: configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID.");
   process.exit(1);
 }
 
@@ -55,7 +55,7 @@ try {
     };
   }
 } catch (error) {
-  console.error("Erro ao carregar banco de dados:", error);
+  console.error("Erro ao carregar dados:", error);
 }
 
 function salvarDados() {
@@ -94,16 +94,18 @@ function obterUsuario(id) {
     }
     user.inventory = novo;
   }
-  if (typeof user.inventory !== "object" || user.inventory === null) user.inventory = {};
+  if (typeof user.inventory !== "object" || user.inventory === null) {
+    user.inventory = {};
+  }
   if (typeof user.xp !== "number") user.xp = 0;
   if (typeof user.dailyStreak !== "number") user.dailyStreak = 0;
 
-  user.lastDaily ||= 0;
-  user.lastWork ||= 0;
-  user.lastAdventure ||= 0;
-  user.lastFish ||= 0;
-  user.lastMine ||= 0;
-  user.lastXP ||= 0;
+  user.lastDaily = user.lastDaily || 0;
+  user.lastWork = user.lastWork || 0;
+  user.lastAdventure = user.lastAdventure || 0;
+  user.lastFish = user.lastFish || 0;
+  user.lastMine = user.lastMine || 0;
+  user.lastXP = user.lastXP || 0;
 
   return user;
 }
@@ -125,7 +127,7 @@ function criarEmbed(titulo, descricao, cor = 0x55ff55) {
     .setColor(cor)
     .setTitle(titulo)
     .setDescription(descricao)
-    .setFooter({ text: "YSIS MC • Feito com carinho para a comunidade" })
+    .setFooter({ text: "YSIS MC • Feito com carinho" })
     .setTimestamp();
 }
 
@@ -170,7 +172,6 @@ function nomeItem(item) {
 // ==========================================
 
 const comandos = [
-  // GERAIS
   new SlashCommandBuilder().setName("ajuda").setDescription("Veja todos os comandos do YSIS MC."),
   new SlashCommandBuilder().setName("ip").setDescription("Veja o IP do servidor Minecraft."),
   new SlashCommandBuilder().setName("site").setDescription("Veja o site do YSIS MC."),
@@ -184,7 +185,6 @@ const comandos = [
     .setDescription("Veja o perfil completo de alguém.")
     .addUserOption(o => o.setName("usuario").setDescription("Perfil de outra pessoa").setRequired(false)),
 
-  // ECONOMIA
   new SlashCommandBuilder().setName("daily").setDescription("Receba suas moedas diárias (+ streak!)."),
   new SlashCommandBuilder()
     .setName("saldo")
@@ -210,7 +210,6 @@ const comandos = [
     .setDescription("Aposte e tente dobrar suas moedas.")
     .addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)),
 
-  // LOJA & AVENTURAS
   new SlashCommandBuilder().setName("loja").setDescription("Veja os itens disponíveis."),
   new SlashCommandBuilder()
     .setName("comprar")
@@ -244,7 +243,6 @@ const comandos = [
   new SlashCommandBuilder().setName("aventura").setDescription("Explore o mundo e encontre tesouros."),
   new SlashCommandBuilder().setName("minerar").setDescription("Mine blocos e encontre diamantes!"),
 
-  // DIVERSÃO / SOCIAL
   new SlashCommandBuilder().setName("moeda").setDescription("Jogue uma moeda."),
   new SlashCommandBuilder().setName("dado").setDescription("Role um dado de 6 lados."),
   new SlashCommandBuilder()
@@ -278,7 +276,6 @@ const comandos = [
     .setDescription("Avalie algo ou alguém de 0 a 10.")
     .addStringOption(o => o.setName("texto").setDescription("O que avaliar").setRequired(true)),
 
-  // MODERAÇÃO
   new SlashCommandBuilder()
     .setName("limpar")
     .setDescription("Apague mensagens do canal.")
@@ -340,7 +337,6 @@ const comandos = [
     .addStringOption(o => o.setName("texto").setDescription("Conteúdo").setMaxLength(3500).setRequired(true))
     .addChannelOption(o => o.setName("canal").setDescription("Canal").addChannelTypes(ChannelType.GuildText).setRequired(false)),
 
-  // TICKETS
   new SlashCommandBuilder().setName("ticket").setDescription("Abra um ticket de atendimento."),
   new SlashCommandBuilder().setName("fecharticket").setDescription("Feche o ticket atual."),
 ];
@@ -359,7 +355,7 @@ const client = new Client({
 });
 
 // ==========================================
-// REGISTRAR COMANDOS
+// READY
 // ==========================================
 
 client.once("ready", async () => {
@@ -370,14 +366,14 @@ client.once("ready", async () => {
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
       body: comandos.map(c => c.toJSON()),
     });
-    console.log(`✅ ${comandos.length} comandos registrados com sucesso.`);
+    console.log(`✅ ${comandos.length} comandos registrados.`);
   } catch (error) {
     console.error("Erro ao registrar comandos:", error);
   }
 });
 
 // ==========================================
-// BOAS-VINDAS E DESPEDIDA
+// BOAS-VINDAS
 // ==========================================
 
 client.on("guildMemberAdd", async membro => {
@@ -386,7 +382,7 @@ client.on("guildMemberAdd", async membro => {
       (WELCOME_CHANNEL_ID && membro.guild.channels.cache.get(WELCOME_CHANNEL_ID)) ||
       membro.guild.systemChannel;
 
-    if (!canal?.isTextBased()) return;
+    if (!canal || !canal.isTextBased()) return;
 
     const embed = criarEmbed(
       "👋 Bem-vindo(a) ao YSIS MC!",
@@ -398,7 +394,7 @@ client.on("guildMemberAdd", async membro => {
 
     await canal.send({ embeds: [embed] });
   } catch (error) {
-    console.error("Erro na mensagem de boas-vindas:", error);
+    console.error("Erro boas-vindas:", error);
   }
 });
 
@@ -408,11 +404,11 @@ client.on("guildMemberRemove", async membro => {
       (GOODBYE_CHANNEL_ID && membro.guild.channels.cache.get(GOODBYE_CHANNEL_ID)) ||
       membro.guild.systemChannel;
 
-    if (!canal?.isTextBased()) return;
+    if (!canal || !canal.isTextBased()) return;
 
     await canal.send(`👋 **${membro.user.username}** saiu do servidor. Até a próxima!`);
   } catch (error) {
-    console.error("Erro na mensagem de despedida:", error);
+    console.error("Erro despedida:", error);
   }
 });
 
@@ -437,15 +433,13 @@ client.on("messageCreate", async message => {
 
   if (nivelNovo > nivelAntigo) {
     try {
-      await message.channel.send(
-        `🎉 Parabéns, ${message.author}! Você subiu para o **nível ${nivelNovo}**!`
-      );
+      await message.channel.send(`🎉 Parabéns, ${message.author}! Você subiu para o **nível ${nivelNovo}**!`);
     } catch {}
   }
 });
 
 // ==========================================
-// HANDLER DE COMANDOS
+// INTERAÇÕES
 // ==========================================
 
 client.on("interactionCreate", async interaction => {
@@ -455,7 +449,6 @@ client.on("interactionCreate", async interaction => {
   const agora = Date.now();
 
   try {
-    // ---------- AJUDA ----------
     if (cmd === "ajuda") {
       const embed = criarEmbed("📚 Central de Comandos — YSIS MC", "Todos os comandos disponíveis:")
         .addFields(
@@ -469,14 +462,12 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // ---------- INFORMAÇÕES ----------
     if (cmd === "ip") {
       return interaction.reply({
         embeds: [
           criarEmbed(
             "⛏️ IP do YSIS MC",
-            `**Endereço:** \`${IP}\`\n**Porta:** \`${PORT}\`\n\n` +
-              `Se o servidor estiver offline, confira o painel:\n${ATERNOS}`
+            `**Endereço:** \`${IP}\`\n**Porta:** \`${PORT}\`\n\nSe o servidor estiver offline, confira o painel:\n${ATERNOS}`
           ),
         ],
       });
@@ -492,9 +483,7 @@ client.on("interactionCreate", async interaction => {
       const guild = interaction.guild;
       const embed = criarEmbed(
         `🌍 ${guild.name}`,
-        `**Membros:** ${guild.memberCount}\n` +
-          `**Criado em:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>\n` +
-          `**Dono:** <@${guild.ownerId}>`
+        `**Membros:** ${guild.memberCount}\n**Criado em:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>\n**Dono:** <@${guild.ownerId}>`
       );
       if (guild.iconURL()) embed.setThumbnail(guild.iconURL({ size: 256 }));
       return interaction.reply({ embeds: [embed] });
@@ -515,8 +504,7 @@ client.on("interactionCreate", async interaction => {
       const xpProx = xpParaProximoNivel(nivel) - nivel ** 2 * 100;
 
       let casamento = "Solteiro(a)";
-      const conjugeId = data.marriages[alvo.id];
-      if (conjugeId) casamento = `Casado(a) com <@${conjugeId}>`;
+      if (data.marriages[alvo.id]) casamento = `Casado(a) com <@${data.marriages[alvo.id]}>`;
 
       const inventárioTexto =
         Object.keys(user.inventory).length === 0
@@ -541,25 +529,20 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ---------- ECONOMIA ----------
     if (cmd === "daily") {
       const user = obterUsuario(interaction.user.id);
       const cooldown = 24 * 60 * 60 * 1000;
 
       if (agora - user.lastDaily < cooldown) {
-        const restante = cooldown - (agora - user.lastDaily);
         return interaction.reply({
-          embeds: [criarEmbed("⏰ Daily já resgatado", `Volte em **${formatarTempo(restante)}**.`, 0xff5555)],
+          embeds: [criarEmbed("⏰ Daily já resgatado", `Volte em **${formatarTempo(cooldown - (agora - user.lastDaily))}**.`, 0xff5555)],
           ephemeral: true,
         });
       }
 
       const ontem = agora - cooldown - 2 * 60 * 60 * 1000;
-      if (user.lastDaily > ontem) {
-        user.dailyStreak += 1;
-      } else {
-        user.dailyStreak = 1;
-      }
+      if (user.lastDaily > ontem) user.dailyStreak += 1;
+      else user.dailyStreak = 1;
 
       const bonus = Math.min(user.dailyStreak * 15, 150);
       const ganho = 80 + numeroAleatorio(20, 60) + bonus;
@@ -570,11 +553,7 @@ client.on("interactionCreate", async interaction => {
 
       return interaction.reply({
         embeds: [
-          criarEmbed(
-            "🎁 Daily resgatado!",
-            `Você recebeu **${ganho}** moedas!\n` +
-              `Streak atual: **${user.dailyStreak}** dias (+${bonus} bônus)`
-          ),
+          criarEmbed("🎁 Daily resgatado!", `Você recebeu **${ganho}** moedas!\nStreak atual: **${user.dailyStreak}** dias (+${bonus} bônus)`),
         ],
       });
     }
@@ -587,9 +566,7 @@ client.on("interactionCreate", async interaction => {
         embeds: [
           criarEmbed(
             `💰 Saldo de ${alvo.username}`,
-            `**Carteira:** ${user.coins.toLocaleString("pt-BR")} moedas\n` +
-              `**Banco:** ${user.bank.toLocaleString("pt-BR")} moedas\n` +
-              `**Total:** ${(user.coins + user.bank).toLocaleString("pt-BR")} moedas`
+            `**Carteira:** ${user.coins.toLocaleString("pt-BR")} moedas\n**Banco:** ${user.bank.toLocaleString("pt-BR")} moedas\n**Total:** ${(user.coins + user.bank).toLocaleString("pt-BR")} moedas`
           ),
         ],
       });
@@ -601,13 +578,7 @@ client.on("interactionCreate", async interaction => {
 
       if (agora - user.lastWork < cooldown) {
         return interaction.reply({
-          embeds: [
-            criarEmbed(
-              "⏳ Ainda cansado...",
-              `Você pode trabalhar novamente em **${formatarTempo(cooldown - (agora - user.lastWork))}**.`,
-              0xff5555
-            ),
-          ],
+          embeds: [criarEmbed("⏳ Ainda cansado...", `Você pode trabalhar novamente em **${formatarTempo(cooldown - (agora - user.lastWork))}**.`, 0xff5555)],
           ephemeral: true,
         });
       }
@@ -627,12 +598,7 @@ client.on("interactionCreate", async interaction => {
       salvarDados();
 
       return interaction.reply({
-        embeds: [
-          criarEmbed(
-            "💼 Trabalho concluído!",
-            `Você trabalhou como **${trabalho.nome}** e ganhou **${ganho}** moedas!`
-          ),
-        ],
+        embeds: [criarEmbed("💼 Trabalho concluído!", `Você trabalhou como **${trabalho.nome}** e ganhou **${ganho}** moedas!`)],
       });
     }
 
@@ -654,12 +620,7 @@ client.on("interactionCreate", async interaction => {
       salvarDados();
 
       return interaction.reply({
-        embeds: [
-          criarEmbed(
-            "💸 Pagamento realizado!",
-            `${interaction.user} enviou **${quantia}** moedas para ${alvo}.`
-          ),
-        ],
+        embeds: [criarEmbed("💸 Pagamento realizado!", `${interaction.user} enviou **${quantia}** moedas para ${alvo}.`)],
       });
     }
 
@@ -740,10 +701,9 @@ client.on("interactionCreate", async interaction => {
       }
     }
 
-    // ---------- LOJA & AVENTURAS ----------
     if (cmd === "loja") {
       const itens = Object.entries(loja)
-        .map(([key, item]) => `${item.emoji} **${item.nome}** — ${item.preco} moedas\n*${item.descricao}*`)
+        .map(([, item]) => `${item.emoji} **${item.nome}** — ${item.preco} moedas\n*${item.descricao}*`)
         .join("\n\n");
 
       return interaction.reply({
@@ -769,12 +729,7 @@ client.on("interactionCreate", async interaction => {
       salvarDados();
 
       return interaction.reply({
-        embeds: [
-          criarEmbed(
-            "✅ Compra realizada!",
-            `Você comprou **${nomeItem(itemKey)}** por **${item.preco}** moedas.`
-          ),
-        ],
+        embeds: [criarEmbed("✅ Compra realizada!", `Você comprou **${nomeItem(itemKey)}** por **${item.preco}** moedas.`)],
       });
     }
 
@@ -812,12 +767,7 @@ client.on("interactionCreate", async interaction => {
       salvarDados();
 
       return interaction.reply({
-        embeds: [
-          criarEmbed(
-            "💰 Venda realizada!",
-            `Você vendeu **${quantidade}x ${nomeItem(itemKey)}** por **${valor}** moedas.`
-          ),
-        ],
+        embeds: [criarEmbed("💰 Venda realizada!", `Você vendeu **${quantidade}x ${nomeItem(itemKey)}** por **${valor}** moedas.`)],
       });
     }
 
@@ -827,13 +777,7 @@ client.on("interactionCreate", async interaction => {
 
       if (agora - user.lastFish < cooldown) {
         return interaction.reply({
-          embeds: [
-            criarEmbed(
-              "🎣 Aguarde um pouco",
-              `Você pode pescar novamente em **${formatarTempo(cooldown - (agora - user.lastFish))}**.`,
-              0xff5555
-            ),
-          ],
+          embeds: [criarEmbed("🎣 Aguarde um pouco", `Você pode pescar novamente em **${formatarTempo(cooldown - (agora - user.lastFish))}**.`, 0xff5555)],
           ephemeral: true,
         });
       }
@@ -879,13 +823,7 @@ client.on("interactionCreate", async interaction => {
 
       if (agora - user.lastAdventure < cooldown) {
         return interaction.reply({
-          embeds: [
-            criarEmbed(
-              "🗺️ Ainda explorando...",
-              `Você pode aventurar novamente em **${formatarTempo(cooldown - (agora - user.lastAdventure))}**.`,
-              0xff5555
-            ),
-          ],
+          embeds: [criarEmbed("🗺️ Ainda explorando...", `Você pode aventurar novamente em **${formatarTempo(cooldown - (agora - user.lastAdventure))}**.`, 0xff5555)],
           ephemeral: true,
         });
       }
@@ -925,13 +863,7 @@ client.on("interactionCreate", async interaction => {
 
       if (agora - user.lastMine < cooldown) {
         return interaction.reply({
-          embeds: [
-            criarEmbed(
-              "⛏️ Picareta cansada",
-              `Você pode minerar novamente em **${formatarTempo(cooldown - (agora - user.lastMine))}**.`,
-              0xff5555
-            ),
-          ],
+          embeds: [criarEmbed("⛏️ Picareta cansada", `Você pode minerar novamente em **${formatarTempo(cooldown - (agora - user.lastMine))}**.`, 0xff5555)],
           ephemeral: true,
         });
       }
@@ -963,7 +895,6 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ embeds: [criarEmbed("⛏️ Mineração", msg)] });
     }
 
-    // ---------- DIVERSÃO / SOCIAL ----------
     if (cmd === "moeda") {
       const lado = Math.random() < 0.5 ? "Cara" : "Coroa";
       return interaction.reply({ embeds: [criarEmbed("🪙 Moeda", `Deu **${lado}**!`)] });
@@ -987,9 +918,7 @@ client.on("interactionCreate", async interaction => {
       const pergunta = interaction.options.getString("texto");
 
       return interaction.reply({
-        embeds: [
-          criarEmbed("🎱 Bola Mágica", `**Pergunta:** ${pergunta}\n**Resposta:** ${resposta}`),
-        ],
+        embeds: [criarEmbed("🎱 Bola Mágica", `**Pergunta:** ${pergunta}\n**Resposta:** ${resposta}`)],
       });
     }
 
@@ -1004,9 +933,7 @@ client.on("interactionCreate", async interaction => {
       else if (porcentagem >= 40) frase = "Tem potencial...";
 
       return interaction.reply({
-        embeds: [
-          criarEmbed("💘 Ship", `${p1} + ${p2}\n\n**${porcentagem}%** de compatibilidade\n${frase}`),
-        ],
+        embeds: [criarEmbed("💘 Ship", `${p1} + ${p2}\n\n**${porcentagem}%** de compatibilidade\n${frase}`)],
       });
     }
 
@@ -1045,9 +972,7 @@ client.on("interactionCreate", async interaction => {
       salvarDados();
 
       return interaction.reply({
-        embeds: [
-          criarEmbed("💍 Casamento!", `${interaction.user} e ${alvo} agora estão casados! Parabéns! 🎉`),
-        ],
+        embeds: [criarEmbed("💍 Casamento!", `${interaction.user} e ${alvo} agora estão casados! Parabéns! 🎉`)],
       });
     }
 
@@ -1074,14 +999,10 @@ client.on("interactionCreate", async interaction => {
       });
     }
 
-    // ---------- MODERAÇÃO ----------
     if (cmd === "limpar") {
       const quantidade = interaction.options.getInteger("quantidade");
       await interaction.channel.bulkDelete(quantidade, true);
-      return interaction.reply({
-        content: `🧹 **${quantidade}** mensagens apagadas.`,
-        ephemeral: true,
-      });
+      return interaction.reply({ content: `🧹 **${quantidade}** mensagens apagadas.`, ephemeral: true });
     }
 
     if (cmd === "expulsar") {
@@ -1124,12 +1045,7 @@ client.on("interactionCreate", async interaction => {
 
       await membro.timeout(minutos * 60 * 1000, motivo);
       return interaction.reply({
-        embeds: [
-          criarEmbed(
-            "🔇 Timeout aplicado",
-            `${alvo} foi silenciado por **${minutos} minutos**.\n**Motivo:** ${motivo}`
-          ),
-        ],
+        embeds: [criarEmbed("🔇 Timeout aplicado", `${alvo} foi silenciado por **${minutos} minutos**.\n**Motivo:** ${motivo}`)],
       });
     }
 
@@ -1166,10 +1082,7 @@ client.on("interactionCreate", async interaction => {
       }
 
       const texto = avisos
-        .map(
-          (a, i) =>
-            `**${i + 1}.** ${a.motivo}\n*Por <@${a.moderador}> em <t:${Math.floor(a.data / 1000)}:d>*`
-        )
+        .map((a, i) => `**${i + 1}.** ${a.motivo}\n*Por <@${a.moderador}> em <t:${Math.floor(a.data / 1000)}:d>*`)
         .join("\n\n");
 
       return interaction.reply({
@@ -1218,7 +1131,6 @@ client.on("interactionCreate", async interaction => {
       return interaction.reply({ content: "Anúncio publicado!", ephemeral: true });
     }
 
-    // ---------- TICKETS ----------
     if (cmd === "ticket") {
       const nomeCanal = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "");
       const existente = interaction.guild.channels.cache.find(
