@@ -1,4 +1,3 @@
-
 const {
   Client,
   GatewayIntentBits,
@@ -7,141 +6,552 @@ const {
   Routes,
   EmbedBuilder,
   PermissionFlagsBits,
+  ChannelType,
 } = require("discord.js");
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+// ==========================================
+// CONFIGURAÇÃO DO YSIS MC
+// ==========================================
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
 const IP = process.env.MINECRAFT_IP || "YSISmc.aternos.me";
-const PORT = "50061";
-const SITE = "https://bit.ly/YsisMc";
-const ATERNOS = "https://aternos.org/server/";
+const PORT = process.env.MINECRAFT_PORT || "50061";
+const SITE = process.env.SITE_URL || "https://bit.ly/YsisMc";
+const ATERNOS = process.env.ATERNOS_URL || "https://aternos.org/server/";
+
+const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
+const GOODBYE_CHANNEL_ID = process.env.GOODBYE_CHANNEL_ID;
 
 if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
-  throw new Error(
-    "Configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID nas variáveis do Railway."
+  console.error(
+    "ERRO: configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID nas variáveis de ambiente."
   );
+  process.exit(1);
 }
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-  ],
-});
+// ==========================================
+// BANCO DE DADOS EM JSON
+// ==========================================
 
-const comandos = [
-  new SlashCommandBuilder()
-    .setName("ajuda")
-    .setDescription("Mostra todos os comandos do YSIS MC"),
+const DATA_FILE = path.join(process.cwd(), "ysis-data.json");
 
-  new SlashCommandBuilder()
-    .setName("ip")
-    .setDescription("Mostra o IP do servidor Minecraft"),
+let data = {
+  users: {},
+  warns: {},
+};
 
-  new SlashCommandBuilder()
-    .setName("site")
-    .setDescription("Mostra o site do YSIS MC"),
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const carregado = JSON.parse(
+      fs.readFileSync(DATA_FILE, "utf8")
+    );
 
-  new SlashCommandBuilder()
-    .setName("banho")
-    .setDescription("Manda alguém tomar banho")
-    .addUserOption(option =>
-      option
-        .setName("usuario")
-        .setDescription("Pessoa que vai tomar banho")
-        .setRequired(false)
-    ),
+    data = {
+      users: carregado.users || {},
+      warns: carregado.warns || {},
+    };
+  }
+} catch (error) {
+  console.error("Erro ao carregar banco de dados:", error);
+}
 
-  new SlashCommandBuilder()
-    .setName("avatar")
-    .setDescription("Mostra o avatar de um usuário")
-    .addUserOption(option =>
-      option
-        .setName("usuario")
-        .setDescription("Usuário desejado")
-        .setRequired(false)
-    ),
+function salvarDados() {
+  try {
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify(data, null, 2),
+      "utf8"
+    );
+  } catch (error) {
+    console.error("Erro ao salvar dados:", error);
+  }
+}
 
-  new SlashCommandBuilder()
-    .setName("servidor")
-    .setDescription("Mostra informações do servidor Discord"),
+function obterUsuario(id) {
+  if (!data.users[id]) {
+    data.users[id] = {
+      coins: 100,
+      bank: 0,
+      inventory: [],
+      xp: 0,
+      lastDaily: 0,
+      lastWork: 0,
+      lastAdventure: 0,
+      lastFish: 0,
+      lastXP: 0,
+    };
+  }
 
-  new SlashCommandBuilder()
-    .setName("limpar")
-    .setDescription("Apaga mensagens do canal")
-    .addIntegerOption(option =>
-      option
-        .setName("quantidade")
-        .setDescription("Quantidade de mensagens (1 a 100)")
-        .setMinValue(1)
-        .setMaxValue(100)
-        .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+  const user = data.users[id];
 
-  new SlashCommandBuilder()
-    .setName("expulsar")
-    .setDescription("Expulsa um membro do servidor")
-    .addUserOption(option =>
-      option
-        .setName("usuario")
-        .setDescription("Membro que será expulso")
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option
-        .setName("motivo")
-        .setDescription("Motivo da expulsão")
-        .setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+  if (typeof user.coins !== "number") user.coins = 100;
+  if (typeof user.bank !== "number") user.bank = 0;
+  if (!Array.isArray(user.inventory)) user.inventory = [];
+  if (typeof user.xp !== "number") user.xp = 0;
 
-  new SlashCommandBuilder()
-    .setName("banir")
-    .setDescription("Bane um membro do servidor")
-    .addUserOption(option =>
-      option
-        .setName("usuario")
-        .setDescription("Membro que será banido")
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option
-        .setName("motivo")
-        .setDescription("Motivo do banimento")
-        .setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
-].map(command => command.toJSON());
+  user.lastDaily ||= 0;
+  user.lastWork ||= 0;
+  user.lastAdventure ||= 0;
+  user.lastFish ||= 0;
+  user.lastXP ||= 0;
 
-function embed(titulo, descricao, cor = 0x3498db) {
+  return user;
+}
+
+function numeroAleatorio(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function formatarTempo(ms) {
+  const minutos = Math.ceil(ms / 60000);
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+
+  if (horas > 0) return `${horas}h ${resto}min`;
+  return `${resto}min`;
+}
+
+function criarEmbed(titulo, descricao) {
   return new EmbedBuilder()
-    .setColor(cor)
+    .setColor(0x5865f2)
     .setTitle(titulo)
     .setDescription(descricao)
     .setFooter({ text: "YSIS MC • Créditos: Kuroshi" })
     .setTimestamp();
 }
 
-function encontrarCanal(guild, nomes) {
-  return guild.channels.cache.find(channel =>
-    nomes.includes(channel.name)
+function barraProgresso(atual, total) {
+  const tamanho = 10;
+  const porcentagem = total > 0 ? atual / total : 0;
+  const preenchidos = Math.max(
+    0,
+    Math.min(tamanho, Math.floor(porcentagem * tamanho))
   );
+
+  return "🟦".repeat(preenchidos) +
+    "⬛".repeat(tamanho - preenchidos);
 }
 
-async function registrar(guild, mensagem) {
-  const canal = encontrarCanal(guild, [
-    "📋・logs",
-    "logs",
-    "📜・registros",
-  ]);
-
-  if (canal && canal.isTextBased()) {
-    await canal.send({ embeds: [mensagem] }).catch(() => {});
-  }
+function nivelDo(xp) {
+  return Math.floor(Math.sqrt(Math.max(0, xp) / 100));
 }
+
+// ==========================================
+// LOJA DO YSIS MC
+// ==========================================
+
+const loja = {
+  cafe: {
+    nome: "Café",
+    emoji: "☕",
+    preco: 15,
+    descricao: "Um café para recuperar a energia.",
+    unico: false,
+  },
+  espada: {
+    nome: "Espada",
+    emoji: "⚔️",
+    preco: 150,
+    descricao: "Uma espada para sua coleção.",
+    unico: true,
+  },
+  picareta: {
+    nome: "Picareta",
+    emoji: "⛏️",
+    preco: 120,
+    descricao: "Uma ferramenta para mineradores.",
+    unico: true,
+  },
+  escudo: {
+    nome: "Escudo",
+    emoji: "🛡️",
+    preco: 100,
+    descricao: "Um escudo para sua coleção.",
+    unico: true,
+  },
+  diamante: {
+    nome: "Diamante",
+    emoji: "💎",
+    preco: 200,
+    descricao: "Um diamante valioso.",
+    unico: false,
+  },
+  peixe: {
+    nome: "Peixe",
+    emoji: "🐟",
+    preco: 30,
+    descricao: "Um peixe pescado durante suas aventuras.",
+    unico: false,
+  },
+};
+
+function nomeItem(item) {
+  return loja[item]?.nome || item;
+}
+
+// ==========================================
+// COMANDOS SLASH
+// ==========================================
+
+const comandos = [
+  // GERAIS
+  new SlashCommandBuilder()
+    .setName("ajuda")
+    .setDescription("Veja os comandos do YSIS MC."),
+
+  new SlashCommandBuilder()
+    .setName("ip")
+    .setDescription("Veja o IP do servidor Minecraft."),
+
+  new SlashCommandBuilder()
+    .setName("site")
+    .setDescription("Veja o site do YSIS MC."),
+
+  new SlashCommandBuilder()
+    .setName("servidor")
+    .setDescription("Veja informações deste servidor do Discord."),
+
+  new SlashCommandBuilder()
+    .setName("avatar")
+    .setDescription("Veja o avatar de alguém.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Pessoa que você quer ver.")
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("perfil")
+    .setDescription("Veja seu perfil, saldo e nível.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Perfil que você quer consultar.")
+        .setRequired(false)
+    ),
+
+  // ECONOMIA
+  new SlashCommandBuilder()
+    .setName("daily")
+    .setDescription("Receba suas moedas diárias."),
+
+  new SlashCommandBuilder()
+    .setName("saldo")
+    .setDescription("Veja seu saldo de moedas.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Saldo de outra pessoa.")
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("trabalhar")
+    .setDescription("Trabalhe para ganhar moedas."),
+
+  new SlashCommandBuilder()
+    .setName("pagar")
+    .setDescription("Envie moedas para outra pessoa.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Quem vai receber.")
+        .setRequired(true)
+    )
+    .addIntegerOption(o =>
+      o.setName("quantia")
+        .setDescription("Quantidade de moedas.")
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("top")
+    .setDescription("Veja o ranking de moedas do servidor."),
+
+  new SlashCommandBuilder()
+    .setName("apostar")
+    .setDescription("Aposte suas moedas e tente dobrá-las.")
+    .addIntegerOption(o =>
+      o.setName("quantia")
+        .setDescription("Quantidade que deseja apostar.")
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+
+  // LOJA
+  new SlashCommandBuilder()
+    .setName("loja")
+    .setDescription("Veja os itens disponíveis para compra."),
+
+  new SlashCommandBuilder()
+    .setName("comprar")
+    .setDescription("Compre um item na loja.")
+    .addStringOption(o =>
+      o.setName("item")
+        .setDescription("Item que deseja comprar.")
+        .setRequired(true)
+        .addChoices(
+          { name: "☕ Café — 15 moedas", value: "cafe" },
+          { name: "⚔️ Espada — 150 moedas", value: "espada" },
+          { name: "⛏️ Picareta — 120 moedas", value: "picareta" },
+          { name: "🛡️ Escudo — 100 moedas", value: "escudo" },
+          { name: "💎 Diamante — 200 moedas", value: "diamante" }
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("inventario")
+    .setDescription("Veja os itens do seu inventário.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Inventário de outra pessoa.")
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("vender")
+    .setDescription("Venda um item do seu inventário.")
+    .addStringOption(o =>
+      o.setName("item")
+        .setDescription("Item que deseja vender.")
+        .setRequired(true)
+        .addChoices(
+          { name: "☕ Café", value: "cafe" },
+          { name: "⚔️ Espada", value: "espada" },
+          { name: "⛏️ Picareta", value: "picareta" },
+          { name: "🛡️ Escudo", value: "escudo" },
+          { name: "💎 Diamante", value: "diamante" },
+          { name: "🐟 Peixe", value: "peixe" }
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("pescar")
+    .setDescription("Pesque peixes e ganhe recompensas."),
+
+  new SlashCommandBuilder()
+    .setName("aventura")
+    .setDescription("Explore o mundo e encontre recompensas."),
+
+  // DIVERSÃO
+  new SlashCommandBuilder()
+    .setName("moeda")
+    .setDescription("Jogue uma moeda para o alto."),
+
+  new SlashCommandBuilder()
+    .setName("dado")
+    .setDescription("Role um dado de seis lados."),
+
+  new SlashCommandBuilder()
+    .setName("pergunta")
+    .setDescription("Faça uma pergunta para a bola mágica.")
+    .addStringOption(o =>
+      o.setName("texto")
+        .setDescription("Sua pergunta.")
+        .setMaxLength(300)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("ship")
+    .setDescription("Veja a porcentagem de compatibilidade.")
+    .addUserOption(o =>
+      o.setName("pessoa1")
+        .setDescription("Primeira pessoa.")
+        .setRequired(true)
+    )
+    .addUserOption(o =>
+      o.setName("pessoa2")
+        .setDescription("Segunda pessoa.")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("banho")
+    .setDescription("Dê um banho em alguém.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Quem vai tomar banho.")
+        .setRequired(false)
+    ),
+
+  // MODERAÇÃO
+  new SlashCommandBuilder()
+    .setName("limpar")
+    .setDescription("Apague mensagens do canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o =>
+      o.setName("quantidade")
+        .setDescription("Quantidade de mensagens, de 1 a 100.")
+        .setMinValue(1)
+        .setMaxValue(100)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("expulsar")
+    .setDescription("Expulse uma pessoa do servidor.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Pessoa que será expulsa.")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo da expulsão.")
+        .setMaxLength(500)
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("banir")
+    .setDescription("Bane uma pessoa do servidor.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Pessoa que será banida.")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo do banimento.")
+        .setMaxLength(500)
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("timeout")
+    .setDescription("Silencie temporariamente um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que será silenciado.")
+        .setRequired(true)
+    )
+    .addIntegerOption(o =>
+      o.setName("minutos")
+        .setDescription("Duração em minutos, até 28 dias.")
+        .setMinValue(1)
+        .setMaxValue(40320)
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo do silêncio.")
+        .setMaxLength(500)
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("avisar")
+    .setDescription("Registre uma advertência para um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que receberá a advertência.")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo da advertência.")
+        .setMaxLength(500)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("avisos")
+    .setDescription("Consulte as advertências de um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que deseja consultar.")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("limparavisos")
+    .setDescription("Apague as advertências de um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que terá os avisos apagados.")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("lock")
+    .setDescription("Bloqueie o envio de mensagens neste canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+  new SlashCommandBuilder()
+    .setName("unlock")
+    .setDescription("Libere o envio de mensagens neste canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+  new SlashCommandBuilder()
+    .setName("dizer")
+    .setDescription("Faça o bot enviar uma mensagem.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o =>
+      o.setName("texto")
+        .setDescription("Mensagem que será enviada.")
+        .setMaxLength(1800)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("anunciar")
+    .setDescription("Publique um anúncio em um canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o =>
+      o.setName("titulo")
+        .setDescription("Título do anúncio.")
+        .setMaxLength(200)
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("texto")
+        .setDescription("Conteúdo do anúncio.")
+        .setMaxLength(3500)
+        .setRequired(true)
+    )
+    .addChannelOption(o =>
+      o.setName("canal")
+        .setDescription("Canal onde será publicado.")
+        .addChannelTypes(ChannelType.GuildText)
+        .setRequired(false)
+    ),
+
+  // TICKETS
+  new SlashCommandBuilder()
+    .setName("ticket")
+    .setDescription("Abra um canal privado de atendimento."),
+
+  new SlashCommandBuilder()
+    .setName("fecharticket")
+    .setDescription("Feche o ticket atual."),
+];
+
+// ==========================================
+// CLIENTE DO DISCORD
+// ==========================================
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+  ],
+});
+
+// ==========================================
+// REGISTRAR COMANDOS
+// ==========================================
 
 client.once("ready", async () => {
   console.log(`✅ ${client.user.tag} está online!`);
@@ -151,296 +561,189 @@ client.once("ready", async () => {
 
     await rest.put(
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: comandos }
+      { body: comandos.map(c => c.toJSON()) }
     );
 
-    console.log("✅ Comandos registrados com sucesso!");
+    console.log(`✅ ${comandos.length} comandos registrados.`);
   } catch (error) {
     console.error("Erro ao registrar comandos:", error);
   }
 });
 
-client.on("guildMemberAdd", async member => {
-  const canal = encontrarCanal(member.guild, [
-    "👋・entradas",
-    "entradas",
-    "bem-vindo",
-  ]) || member.guild.systemChannel;
+// ==========================================
+// BOAS-VINDAS E DESPEDIDA
+// ==========================================
 
-  if (canal && canal.isTextBased()) {
-    await canal.send({
-      content: `👋 Bem-vindo(a), ${member}!`,
-      embeds: [
-        embed(
-          "🎮 Bem-vindo ao YSIS MC!",
-          `Olá, ${member.user.username}!\n\n` +
-          `🌐 **Site:** ${SITE}\n` +
-          `⛏️ **IP:** \`${IP}\`\n` +
-          `🔌 **Porta:** \`${PORT}\`\n\n` +
-          "Divirta-se e respeite as regras!"
-        ),
-      ],
-    }).catch(() => {});
+client.on("guildMemberAdd", async membro => {
+  try {
+    const canal =
+      (WELCOME_CHANNEL_ID &&
+        membro.guild.channels.cache.get(WELCOME_CHANNEL_ID)) ||
+      membro.guild.systemChannel;
+
+    if (!canal || !canal.isTextBased()) return;
+
+    const embed = criarEmbed(
+      "👋 Bem-vindo ao YSIS MC!",
+      `Olá, ${membro}! Seja bem-vindo(a) ao **${membro.guild.name}**!\n\n` +
+      `🎮 Entre no nosso Minecraft: **${IP}:${PORT}**\n` +
+      `🌐 Site: ${SITE}\n` +
+      `📜 Leia as regras e divirta-se!`
+    ).setThumbnail(membro.user.displayAvatarURL());
+
+    await canal.send({ embeds: [embed] });
+  } catch (error) {
+    console.error("Erro na mensagem de boas-vindas:", error);
   }
-
-  await registrar(
-    member.guild,
-    embed(
-      "📥 Membro entrou",
-      `**Usuário:** ${member.user.tag}\n` +
-      `**ID:** ${member.id}`,
-      0x2ecc71
-    )
-  );
 });
 
-client.on("guildMemberRemove", async member => {
-  await registrar(
-    member.guild,
-    embed(
-      "📤 Membro saiu",
-      `**Usuário:** ${member.user.tag}\n` +
-      `**ID:** ${member.id}`,
-      0xe74c3c
-    )
-  );
+client.on("guildMemberRemove", async membro => {
+  try {
+    const canal =
+      (GOODBYE_CHANNEL_ID &&
+        membro.guild.channels.cache.get(GOODBYE_CHANNEL_ID)) ||
+      membro.guild.systemChannel;
+
+    if (!canal || !canal.isTextBased()) return;
+
+    await canal.send(
+      `👋 **${membro.user.username}** saiu do servidor. Até a próxima!`
+    );
+  } catch (error) {
+    console.error("Erro na mensagem de despedida:", error);
+  }
 });
+
+// ==========================================
+// XP AUTOMÁTICO POR MENSAGENS
+// ==========================================
+
+client.on("messageCreate", async message => {
+  if (!message.guild || message.author.bot) return;
+
+  const user = obterUsuario(message.author.id);
+  const agora = Date.now();
+
+  // Só ganha XP uma vez a cada 60 segundos.
+  if (agora - user.lastXP < 60000) return;
+
+  const nivelAntigo = nivelDo(user.xp);
+
+  user.xp += numeroAleatorio(8, 15);
+  user.lastXP = agora;
+
+  const nivelNovo = nivelDo(user.xp);
+
+  salvarDados();
+
+  if (nivelNovo > nivelAntigo) {
+    try {
+      await message.channel.send(
+        `🎉 Parabéns, ${message.author}! Você alcançou o **nível ${nivelNovo}**!`
+      );
+    } catch (error) {
+      console.error("Erro ao enviar mensagem de nível:", error);
+    }
+  }
+});
+
+// ==========================================
+// INTERAÇÕES DOS COMANDOS
+// ==========================================
 
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  const { commandName, guild } = interaction;
+  const cmd = interaction.commandName;
+  const agora = Date.now();
 
   try {
-    if (commandName === "ajuda") {
-      return interaction.reply({
-        embeds: [
-          embed(
-            "📚 Comandos do YSIS MC",
-            "**🌐 Informações**\n" +
-            "`/ip` — IP do Minecraft\n" +
-            "`/site` — Site do servidor\n" +
-            "`/servidor` — Informações do Discord\n" +
-            "`/avatar` — Ver avatar de usuário\n\n" +
-            "**😂 Diversão**\n" +
-            "`/banho` — Mandar alguém tomar banho\n\n" +
-            "**🛡️ Moderação**\n" +
-            "`/limpar` — Apagar mensagens\n" +
-            "`/expulsar` — Expulsar membro\n" +
-            "`/banir` — Banir membro\n\n" +
-            "💙 **Em breve:** novos sistemas e comandos!"
-          ),
-        ],
-      });
+    // --------------------------------------
+    // AJUDA
+    // --------------------------------------
+
+    if (cmd === "ajuda") {
+      const embed = criarEmbed(
+        "📚 Central de comandos — YSIS MC",
+        "Veja as funções disponíveis para você."
+      )
+        .addFields(
+          {
+            name: "🌐 Geral",
+            value:
+              "`/ip` `/site` `/servidor` `/avatar` `/perfil` `/ajuda`",
+          },
+          {
+            name: "💰 Economia",
+            value:
+              "`/daily` `/saldo` `/trabalhar` `/pagar` `/top` `/apostar`",
+          },
+          {
+            name: "🛒 Loja e aventuras",
+            value:
+              "`/loja` `/comprar` `/inventario` `/vender` `/pescar` `/aventura`",
+          },
+          {
+            name: "🎉 Diversão",
+            value:
+              "`/moeda` `/dado` `/pergunta` `/ship` `/banho`",
+          },
+          {
+            name: "🛡️ Moderação",
+            value:
+              "`/limpar` `/expulsar` `/banir` `/timeout` `/avisar` `/avisos` `/limparavisos` `/lock` `/unlock` `/dizer` `/anunciar`",
+          },
+          {
+            name: "🎫 Atendimento",
+            value: "`/ticket` `/fecharticket`",
+          }
+        );
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    if (commandName === "ip") {
-      return interaction.reply({
-        embeds: [
-          embed(
-            "⛏️ Servidor Minecraft",
-            `**IP:** \`${IP}\`\n` +
-            `**Porta:** \`${PORT}\`\n\n` +
-            `🎮 **Painel Aternos:** ${ATERNOS}`
-          ),
-        ],
-      });
+    // --------------------------------------
+    // INFORMAÇÕES
+    // --------------------------------------
+
+    if (cmd === "ip") {
+      const embed = criarEmbed(
+        "⛏️ IP do YSIS MC",
+        `**Endereço:** \`${IP}\`\n**Porta:** \`${PORT}\`\n\n` +
+        `📌 Se o servidor não estiver disponível, confira o painel do Aternos:\n${ATERNOS}`
+      );
+
+      return interaction.reply({ embeds: [embed] });
     }
 
-    if (commandName === "site") {
+    if (cmd === "site") {
       return interaction.reply({
         embeds: [
-          embed(
+          criarEmbed(
             "🌐 Site do YSIS MC",
-            `Acesse nosso site por aqui:\n${SITE}`
+            `Acesse nosso site:\n${SITE}`
           ),
         ],
       });
     }
 
-    if (commandName === "banho") {
+    if (cmd === "servidor") {
+      const guild = interaction.guild;
+
+      const embed = criarEmbed(
+        `🌍 ${guild.name}`,
+        `**Membros:** ${guild.memberCount}\n` +
+        `**Criado em:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>\n` +
+        `**Dono:** <@${guild.ownerId}>`
+      );
+
+      if (guild.iconURL()) {
+        embed.setThumbnail(guild.iconURL());
+      }
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (cmd === "avatar") {
       const usuario =
         interaction.options.getUser("usuario") || interaction.user;
-
-      return interaction.reply({
-        embeds: [
-          embed(
-            "🧼 Hora do banho!",
-            `🚿 ${usuario}, está na hora de tomar um banho! 🧽`,
-            0x1abc9c
-          ),
-        ],
-      });
-    }
-
-    if (commandName === "avatar") {
-      const usuario =
-        interaction.options.getUser("usuario") || interaction.user;
-
-      return interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle(`🖼️ Avatar de ${usuario.username}`)
-            .setImage(
-              usuario.displayAvatarURL({
-                size: 1024,
-                extension: "png",
-              })
-            )
-            .setFooter({ text: "YSIS MC • Créditos: Kuroshi" }),
-        ],
-      });
-    }
-
-    if (commandName === "servidor") {
-      return interaction.reply({
-        embeds: [
-          embed(
-            `📊 ${guild.name}`,
-            `**👥 Membros:** ${guild.memberCount}\n` +
-            `**🆔 ID:** ${guild.id}\n` +
-            `**📅 Criado em:** <t:${Math.floor(
-              guild.createdTimestamp / 1000
-            )}:D>`
-          ),
-        ],
-      });
-    }
-
-    if (commandName === "limpar") {
-      if (!interaction.channel ||
-          !interaction.channel.isTextBased() ||
-          !interaction.channel.messages) {
-        return interaction.reply({
-          content: "❌ Este comando só funciona em canais de texto.",
-          ephemeral: true,
-        });
-      }
-
-      const quantidade =
-        interaction.options.getInteger("quantidade");
-
-      const apagadas = await interaction.channel.bulkDelete(
-        quantidade,
-        true
-      );
-
-      await interaction.reply({
-        content: `🧹 Apaguei ${apagadas.size} mensagens.`,
-        ephemeral: true,
-      });
-
-      await registrar(
-        guild,
-        embed(
-          "🧹 Mensagens apagadas",
-          `**Responsável:** ${interaction.user.tag}\n` +
-          `**Canal:** ${interaction.channel}\n` +
-          `**Quantidade:** ${apagadas.size}`
-        )
-      );
-
-      return;
-    }
-
-    if (commandName === "expulsar") {
-      const usuario = interaction.options.getUser("usuario");
-      const motivo =
-        interaction.options.getString("motivo") || "Não informado";
-
-      const membro = await guild.members.fetch(usuario.id);
-
-      if (!membro.kickable) {
-        return interaction.reply({
-          content: "❌ Não consigo expulsar esse usuário. Verifique minhas permissões e a hierarquia de cargos.",
-          ephemeral: true,
-        });
-      }
-
-      await membro.kick(`${motivo} | Responsável: ${interaction.user.tag}`);
-
-      await interaction.reply({
-        embeds: [
-          embed(
-            "👢 Membro expulso",
-            `**Usuário:** ${usuario.tag}\n` +
-            `**Motivo:** ${motivo}\n` +
-            `**Responsável:** ${interaction.user.tag}`,
-            0xe67e22
-          ),
-        ],
-      });
-
-      await registrar(
-        guild,
-        embed(
-          "👢 Registro de expulsão",
-          `**Usuário:** ${usuario.tag}\n` +
-          `**Motivo:** ${motivo}\n` +
-          `**Responsável:** ${interaction.user.tag}`
-        )
-      );
-
-      return;
-    }
-
-    if (commandName === "banir") {
-      const usuario = interaction.options.getUser("usuario");
-      const motivo =
-        interaction.options.getString("motivo") || "Não informado";
-
-      const membro = await guild.members.fetch(usuario.id);
-
-      if (!membro.bannable) {
-        return interaction.reply({
-          content: "❌ Não consigo banir esse usuário. Verifique minhas permissões e a hierarquia de cargos.",
-          ephemeral: true,
-        });
-      }
-
-      await membro.ban({
-        reason: `${motivo} | Responsável: ${interaction.user.tag}`,
-      });
-
-      await interaction.reply({
-        embeds: [
-          embed(
-            "🔨 Membro banido",
-            `**Usuário:** ${usuario.tag}\n` +
-            `**Motivo:** ${motivo}\n` +
-            `**Responsável:** ${interaction.user.tag}`,
-            0xe74c3c
-          ),
-        ],
-      });
-
-      await registrar(
-        guild,
-        embed(
-          "🔨 Registro de banimento",
-          `**Usuário:** ${usuario.tag}\n` +
-          `**Motivo:** ${motivo}\n` +
-          `**Responsável:** ${interaction.user.tag}`
-        )
-      );
-
-      return;
-    }
-  } catch (error) {
-    console.error(`Erro no comando ${commandName}:`, error);
-
-    const resposta = {
-      content: "❌ Ocorreu um erro ao executar o comando. Verifique as permissões e os logs do bot.",
-      ephemeral: true,
-    };
-
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(resposta).catch(() => {});
-    } else {
-      await interaction.reply(resposta).catch(() => {});
-    }
-  }
-});
-
-client.login(TOKEN);
