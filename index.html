@@ -12,10 +12,6 @@ const {
 const fs = require("node:fs");
 const path = require("node:path");
 
-// ==========================================
-// CONFIGURAÇÃO
-// ==========================================
-
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
@@ -32,10 +28,6 @@ if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
   console.error("ERRO: configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID.");
   process.exit(1);
 }
-
-// ==========================================
-// BANCO DE DADOS
-// ==========================================
 
 const DATA_FILE = path.join(process.cwd(), "ysis-data.json");
 
@@ -146,10 +138,6 @@ function xpParaProximoNivel(nivel) {
   return (nivel + 1) ** 2 * 100;
 }
 
-// ==========================================
-// LOJA
-// ==========================================
-
 const loja = {
   cafe: { nome: "Café", emoji: "☕", preco: 15, descricao: "Recupera a energia.", unico: false, venda: 8 },
   espada: { nome: "Espada de Diamante", emoji: "⚔️", preco: 250, descricao: "Uma espada poderosa.", unico: true, venda: 120 },
@@ -167,10 +155,6 @@ function nomeItem(item) {
   return loja[item] ? `${loja[item].emoji} ${loja[item].nome}` : item;
 }
 
-// ==========================================
-// COMANDOS
-// ==========================================
-
 const comandos = [
   new SlashCommandBuilder().setName("ajuda").setDescription("Veja todos os comandos do YSIS MC."),
   new SlashCommandBuilder().setName("ip").setDescription("Veja o IP do servidor Minecraft."),
@@ -184,7 +168,6 @@ const comandos = [
     .setName("perfil")
     .setDescription("Veja o perfil completo de alguém.")
     .addUserOption(o => o.setName("usuario").setDescription("Perfil de outra pessoa").setRequired(false)),
-
   new SlashCommandBuilder().setName("daily").setDescription("Receba suas moedas diárias (+ streak!)."),
   new SlashCommandBuilder()
     .setName("saldo")
@@ -209,7 +192,6 @@ const comandos = [
     .setName("apostar")
     .setDescription("Aposte e tente dobrar suas moedas.")
     .addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)),
-
   new SlashCommandBuilder().setName("loja").setDescription("Veja os itens disponíveis."),
   new SlashCommandBuilder()
     .setName("comprar")
@@ -242,7 +224,6 @@ const comandos = [
   new SlashCommandBuilder().setName("pescar").setDescription("Pesque peixes e ganhe recompensas."),
   new SlashCommandBuilder().setName("aventura").setDescription("Explore o mundo e encontre tesouros."),
   new SlashCommandBuilder().setName("minerar").setDescription("Mine blocos e encontre diamantes!"),
-
   new SlashCommandBuilder().setName("moeda").setDescription("Jogue uma moeda."),
   new SlashCommandBuilder().setName("dado").setDescription("Role um dado de 6 lados."),
   new SlashCommandBuilder()
@@ -275,7 +256,6 @@ const comandos = [
     .setName("rate")
     .setDescription("Avalie algo ou alguém de 0 a 10.")
     .addStringOption(o => o.setName("texto").setDescription("O que avaliar").setRequired(true)),
-
   new SlashCommandBuilder()
     .setName("limpar")
     .setDescription("Apague mensagens do canal.")
@@ -336,14 +316,9 @@ const comandos = [
     .addStringOption(o => o.setName("titulo").setDescription("Título").setMaxLength(200).setRequired(true))
     .addStringOption(o => o.setName("texto").setDescription("Conteúdo").setMaxLength(3500).setRequired(true))
     .addChannelOption(o => o.setName("canal").setDescription("Canal").addChannelTypes(ChannelType.GuildText).setRequired(false)),
-
   new SlashCommandBuilder().setName("ticket").setDescription("Abra um ticket de atendimento."),
   new SlashCommandBuilder().setName("fecharticket").setDescription("Feche o ticket atual."),
 ];
-
-// ==========================================
-// CLIENTE
-// ==========================================
 
 const client = new Client({
   intents: [
@@ -353,10 +328,6 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
   ],
 });
-
-// ==========================================
-// READY
-// ==========================================
 
 client.once("ready", async () => {
   console.log(`✅ ${client.user.tag} está online!`);
@@ -371,10 +342,6 @@ client.once("ready", async () => {
     console.error("Erro ao registrar comandos:", error);
   }
 });
-
-// ==========================================
-// BOAS-VINDAS
-// ==========================================
 
 client.on("guildMemberAdd", async membro => {
   try {
@@ -412,10 +379,6 @@ client.on("guildMemberRemove", async membro => {
   }
 });
 
-// ==========================================
-// XP AUTOMÁTICO
-// ==========================================
-
 client.on("messageCreate", async message => {
   if (!message.guild || message.author.bot) return;
 
@@ -437,10 +400,6 @@ client.on("messageCreate", async message => {
     } catch {}
   }
 });
-
-// ==========================================
-// INTERAÇÕES
-// ==========================================
 
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
@@ -490,23 +449,10 @@ client.on("interactionCreate", async interaction => {
     }
 
     if (cmd === "avatar") {
-  const usuario =
-    interaction.options.getUser("usuario") || interaction.user;
-
-  const embed = new EmbedBuilder()
-    .setColor(0x55ff55)
-    .setTitle(`🖼️ Avatar de ${usuario.username}`)
-    .setImage(usuario.displayAvatarURL({ size: 1024 }))
-    .setDescription(
-      `[🔗 Abrir avatar original](${usuario.displayAvatarURL({
-        size: 1024
-      })})`
-    )
-    .setFooter({ text: "YSIS MC • Feito com carinho" })
-    .setTimestamp();
-
-  await interaction.reply({ embeds: [embed] });
-
+      const usuario = interaction.options.getUser("usuario") || interaction.user;
+      const embed = criarEmbed(`🖼️ Avatar de ${usuario.username}`, null)
+        .setImage(usuario.displayAvatarURL({ size: 1024, extension: "png" }));
+      return interaction.reply({ embeds: [embed] });
     }
 
     if (cmd === "perfil") {
@@ -534,671 +480,4 @@ client.on("interactionCreate", async interaction => {
           `**Banco:** 🏦 ${user.bank.toLocaleString("pt-BR")}\n` +
           `**Total:** ${(user.coins + user.bank).toLocaleString("pt-BR")}\n` +
           `**Streak Daily:** ${user.dailyStreak} dias\n` +
-          `**Estado civil:** ${casamento}`
-      )
-        .setThumbnail(alvo.displayAvatarURL({ size: 256 }))
-        .addFields({ name: "🎒 Inventário", value: inventárioTexto.slice(0, 1024) || "Vazio" });
-
-      return interaction.reply({ embeds: [embed] });
-    }
-
-    if (cmd === "daily") {
-      const user = obterUsuario(interaction.user.id);
-      const cooldown = 24 * 60 * 60 * 1000;
-
-      if (agora - user.lastDaily < cooldown) {
-        return interaction.reply({
-          embeds: [criarEmbed("⏰ Daily já resgatado", `Volte em **${formatarTempo(cooldown - (agora - user.lastDaily))}**.`, 0xff5555)],
-          ephemeral: true,
-        });
-      }
-
-      const ontem = agora - cooldown - 2 * 60 * 60 * 1000;
-      if (user.lastDaily > ontem) user.dailyStreak += 1;
-      else user.dailyStreak = 1;
-
-      const bonus = Math.min(user.dailyStreak * 15, 150);
-      const ganho = 80 + numeroAleatorio(20, 60) + bonus;
-
-      user.coins += ganho;
-      user.lastDaily = agora;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [
-          criarEmbed("🎁 Daily resgatado!", `Você recebeu **${ganho}** moedas!\nStreak atual: **${user.dailyStreak}** dias (+${bonus} bônus)`),
-        ],
-      });
-    }
-
-    if (cmd === "saldo") {
-      const alvo = interaction.options.getUser("usuario") || interaction.user;
-      const user = obterUsuario(alvo.id);
-
-      return interaction.reply({
-        embeds: [
-          criarEmbed(
-            `💰 Saldo de ${alvo.username}`,
-            `**Carteira:** ${user.coins.toLocaleString("pt-BR")} moedas\n**Banco:** ${user.bank.toLocaleString("pt-BR")} moedas\n**Total:** ${(user.coins + user.bank).toLocaleString("pt-BR")} moedas`
-          ),
-        ],
-      });
-    }
-
-    if (cmd === "trabalhar") {
-      const user = obterUsuario(interaction.user.id);
-      const cooldown = 45 * 60 * 1000;
-
-      if (agora - user.lastWork < cooldown) {
-        return interaction.reply({
-          embeds: [criarEmbed("⏳ Ainda cansado...", `Você pode trabalhar novamente em **${formatarTempo(cooldown - (agora - user.lastWork))}**.`, 0xff5555)],
-          ephemeral: true,
-        });
-      }
-
-      const trabalhos = [
-        { nome: "minerador", ganho: [40, 90] },
-        { nome: "fazendeiro", ganho: [30, 70] },
-        { nome: "pescador", ganho: [35, 80] },
-        { nome: "construtor", ganho: [50, 100] },
-        { nome: "vendedor de itens", ganho: [45, 95] },
-      ];
-      const trabalho = trabalhos[numeroAleatorio(0, trabalhos.length - 1)];
-      const ganho = numeroAleatorio(...trabalho.ganho);
-
-      user.coins += ganho;
-      user.lastWork = agora;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("💼 Trabalho concluído!", `Você trabalhou como **${trabalho.nome}** e ganhou **${ganho}** moedas!`)],
-      });
-    }
-
-    if (cmd === "pagar") {
-      const alvo = interaction.options.getUser("usuario");
-      const quantia = interaction.options.getInteger("quantia");
-      const user = obterUsuario(interaction.user.id);
-      const alvoUser = obterUsuario(alvo.id);
-
-      if (alvo.id === interaction.user.id) {
-        return interaction.reply({ content: "Você não pode pagar a si mesmo.", ephemeral: true });
-      }
-      if (user.coins < quantia) {
-        return interaction.reply({ content: "Você não tem moedas suficientes.", ephemeral: true });
-      }
-
-      user.coins -= quantia;
-      alvoUser.coins += quantia;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("💸 Pagamento realizado!", `${interaction.user} enviou **${quantia}** moedas para ${alvo}.`)],
-      });
-    }
-
-    if (cmd === "depositar") {
-      const quantia = interaction.options.getInteger("quantia");
-      const user = obterUsuario(interaction.user.id);
-
-      if (user.coins < quantia) {
-        return interaction.reply({ content: "Você não tem essa quantia na carteira.", ephemeral: true });
-      }
-
-      user.coins -= quantia;
-      user.bank += quantia;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("🏦 Depósito realizado", `Você depositou **${quantia}** moedas no banco.`)],
-      });
-    }
-
-    if (cmd === "sacar") {
-      const quantia = interaction.options.getInteger("quantia");
-      const user = obterUsuario(interaction.user.id);
-
-      if (user.bank < quantia) {
-        return interaction.reply({ content: "Você não tem essa quantia no banco.", ephemeral: true });
-      }
-
-      user.bank -= quantia;
-      user.coins += quantia;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("🏦 Saque realizado", `Você sacou **${quantia}** moedas do banco.`)],
-      });
-    }
-
-    if (cmd === "top") {
-      const usuarios = Object.entries(data.users)
-        .map(([id, u]) => ({
-          id,
-          total: (u.coins || 0) + (u.bank || 0),
-          nivel: nivelDo(u.xp || 0),
-        }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 10);
-
-      const texto = usuarios
-        .map((u, i) => `**${i + 1}.** <@${u.id}> — 💰 ${u.total.toLocaleString("pt-BR")} | Nível ${u.nivel}`)
-        .join("\n") || "Ninguém ainda.";
-
-      return interaction.reply({
-        embeds: [criarEmbed("🏆 Ranking de Riqueza", texto)],
-      });
-    }
-
-    if (cmd === "apostar") {
-      const quantia = interaction.options.getInteger("quantia");
-      const user = obterUsuario(interaction.user.id);
-
-      if (user.coins < quantia) {
-        return interaction.reply({ content: "Você não tem moedas suficientes.", ephemeral: true });
-      }
-
-      const ganhou = Math.random() < 0.47;
-      if (ganhou) {
-        user.coins += quantia;
-        salvarDados();
-        return interaction.reply({
-          embeds: [criarEmbed("🎉 Você ganhou!", `Parabéns! Você dobrou e agora tem **+${quantia}** moedas.`)],
-        });
-      } else {
-        user.coins -= quantia;
-        salvarDados();
-        return interaction.reply({
-          embeds: [criarEmbed("😢 Você perdeu...", `Perdeu **${quantia}** moedas. Tente novamente!`, 0xff5555)],
-        });
-      }
-    }
-
-    if (cmd === "loja") {
-      const itens = Object.entries(loja)
-        .map(([, item]) => `${item.emoji} **${item.nome}** — ${item.preco} moedas\n*${item.descricao}*`)
-        .join("\n\n");
-
-      return interaction.reply({
-        embeds: [criarEmbed("🛒 Loja do YSIS MC", itens)],
-      });
-    }
-
-    if (cmd === "comprar") {
-      const itemKey = interaction.options.getString("item");
-      const item = loja[itemKey];
-      const user = obterUsuario(interaction.user.id);
-
-      if (!item) return interaction.reply({ content: "Item inválido.", ephemeral: true });
-      if (user.coins < item.preco) {
-        return interaction.reply({ content: "Você não tem moedas suficientes.", ephemeral: true });
-      }
-      if (item.unico && user.inventory[itemKey]) {
-        return interaction.reply({ content: "Você já possui este item único.", ephemeral: true });
-      }
-
-      user.coins -= item.preco;
-      user.inventory[itemKey] = (user.inventory[itemKey] || 0) + 1;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("✅ Compra realizada!", `Você comprou **${nomeItem(itemKey)}** por **${item.preco}** moedas.`)],
-      });
-    }
-
-    if (cmd === "inventario") {
-      const alvo = interaction.options.getUser("usuario") || interaction.user;
-      const user = obterUsuario(alvo.id);
-
-      const texto =
-        Object.keys(user.inventory).length === 0
-          ? "Inventário vazio."
-          : Object.entries(user.inventory)
-              .map(([item, qtd]) => `${nomeItem(item)} × ${qtd}`)
-              .join("\n");
-
-      return interaction.reply({
-        embeds: [criarEmbed(`🎒 Inventário de ${alvo.username}`, texto)],
-      });
-    }
-
-    if (cmd === "vender") {
-      const itemKey = interaction.options.getString("item");
-      const quantidade = interaction.options.getInteger("quantidade") || 1;
-      const item = loja[itemKey];
-      const user = obterUsuario(interaction.user.id);
-
-      if (!item) return interaction.reply({ content: "Item inválido.", ephemeral: true });
-      if (!user.inventory[itemKey] || user.inventory[itemKey] < quantidade) {
-        return interaction.reply({ content: "Você não possui essa quantidade do item.", ephemeral: true });
-      }
-
-      const valor = (item.venda || Math.floor(item.preco * 0.5)) * quantidade;
-      user.inventory[itemKey] -= quantidade;
-      if (user.inventory[itemKey] <= 0) delete user.inventory[itemKey];
-      user.coins += valor;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("💰 Venda realizada!", `Você vendeu **${quantidade}x ${nomeItem(itemKey)}** por **${valor}** moedas.`)],
-      });
-    }
-
-    if (cmd === "pescar") {
-      const user = obterUsuario(interaction.user.id);
-      const cooldown = 20 * 60 * 1000;
-
-      if (agora - user.lastFish < cooldown) {
-        return interaction.reply({
-          embeds: [criarEmbed("🎣 Aguarde um pouco", `Você pode pescar novamente em **${formatarTempo(cooldown - (agora - user.lastFish))}**.`, 0xff5555)],
-          ephemeral: true,
-        });
-      }
-
-      const resultados = [
-        { texto: "Você pescou um peixe comum!", item: "peixe", chance: 0.55 },
-        { texto: "Você pescou um peixe raro e ganhou moedas extras!", coins: [30, 70], chance: 0.25 },
-        { texto: "Você encontrou um diamante no fundo do lago!", item: "diamante", chance: 0.12 },
-        { texto: "Nada... só um peixe de plástico.", coins: [5, 15], chance: 0.08 },
-      ];
-
-      let sorte = Math.random();
-      let resultado = resultados[0];
-      let acumulado = 0;
-      for (const r of resultados) {
-        acumulado += r.chance;
-        if (sorte <= acumulado) {
-          resultado = r;
-          break;
-        }
-      }
-
-      let msg = resultado.texto;
-      if (resultado.item) {
-        user.inventory[resultado.item] = (user.inventory[resultado.item] || 0) + 1;
-        msg += `\nVocê recebeu **${nomeItem(resultado.item)}**!`;
-      }
-      if (resultado.coins) {
-        const ganho = numeroAleatorio(...resultado.coins);
-        user.coins += ganho;
-        msg += `\n+**${ganho}** moedas!`;
-      }
-
-      user.lastFish = agora;
-      salvarDados();
-
-      return interaction.reply({ embeds: [criarEmbed("🎣 Pescaria", msg)] });
-    }
-
-    if (cmd === "aventura") {
-      const user = obterUsuario(interaction.user.id);
-      const cooldown = 35 * 60 * 1000;
-
-      if (agora - user.lastAdventure < cooldown) {
-        return interaction.reply({
-          embeds: [criarEmbed("🗺️ Ainda explorando...", `Você pode aventurar novamente em **${formatarTempo(cooldown - (agora - user.lastAdventure))}**.`, 0xff5555)],
-          ephemeral: true,
-        });
-      }
-
-      const eventos = [
-        { texto: "Você encontrou um baú escondido!", coins: [60, 140] },
-        { texto: "Você derrotou um monstro e coletou loot!", coins: [40, 100], item: "espada" },
-        { texto: "Você descobriu uma mina abandonada!", coins: [80, 160], item: "diamante" },
-        { texto: "Você se perdeu e voltou com pouco...", coins: [15, 40] },
-        { texto: "Você encontrou uma esmeralda brilhante!", item: "esmeralda" },
-      ];
-
-      const evento = eventos[numeroAleatorio(0, eventos.length - 1)];
-      let msg = evento.texto;
-
-      if (evento.coins) {
-        const ganho = numeroAleatorio(...evento.coins);
-        user.coins += ganho;
-        msg += `\n+**${ganho}** moedas!`;
-      }
-      if (evento.item) {
-        if (!loja[evento.item]?.unico || !user.inventory[evento.item]) {
-          user.inventory[evento.item] = (user.inventory[evento.item] || 0) + 1;
-          msg += `\nVocê recebeu **${nomeItem(evento.item)}**!`;
-        }
-      }
-
-      user.lastAdventure = agora;
-      salvarDados();
-
-      return interaction.reply({ embeds: [criarEmbed("🗺️ Aventura", msg)] });
-    }
-
-    if (cmd === "minerar") {
-      const user = obterUsuario(interaction.user.id);
-      const cooldown = 25 * 60 * 1000;
-
-      if (agora - user.lastMine < cooldown) {
-        return interaction.reply({
-          embeds: [criarEmbed("⛏️ Picareta cansada", `Você pode minerar novamente em **${formatarTempo(cooldown - (agora - user.lastMine))}**.`, 0xff5555)],
-          ephemeral: true,
-        });
-      }
-
-      const resultados = [
-        { texto: "Você minerou carvão e ferro.", coins: [25, 55] },
-        { texto: "Você encontrou ouro!", coins: [50, 90] },
-        { texto: "Você achou um veio de diamantes!", item: "diamante", coins: [30, 60] },
-        { texto: "Você encontrou netherite!", item: "netherite" },
-        { texto: "Só pedra... mas ainda vale algo.", coins: [10, 25] },
-      ];
-
-      const resultado = resultados[numeroAleatorio(0, resultados.length - 1)];
-      let msg = resultado.texto;
-
-      if (resultado.coins) {
-        const ganho = numeroAleatorio(...resultado.coins);
-        user.coins += ganho;
-        msg += `\n+**${ganho}** moedas!`;
-      }
-      if (resultado.item) {
-        user.inventory[resultado.item] = (user.inventory[resultado.item] || 0) + 1;
-        msg += `\nVocê recebeu **${nomeItem(resultado.item)}**!`;
-      }
-
-      user.lastMine = agora;
-      salvarDados();
-
-      return interaction.reply({ embeds: [criarEmbed("⛏️ Mineração", msg)] });
-    }
-
-    if (cmd === "moeda") {
-      const lado = Math.random() < 0.5 ? "Cara" : "Coroa";
-      return interaction.reply({ embeds: [criarEmbed("🪙 Moeda", `Deu **${lado}**!`)] });
-    }
-
-    if (cmd === "dado") {
-      const valor = numeroAleatorio(1, 6);
-      return interaction.reply({ embeds: [criarEmbed("🎲 Dado", `Você tirou **${valor}**!`)] });
-    }
-
-    if (cmd === "pergunta") {
-      const respostas = [
-        "Com certeza!", "Definitivamente sim.", "Sem dúvida.", "Sim, com certeza.",
-        "Pode contar com isso.", "Pelo que vejo, sim.", "Provavelmente.", "As perspectivas são boas.",
-        "Sim.", "Os sinais apontam que sim.", "Resposta confusa, tente de novo.", "Pergunte mais tarde.",
-        "Melhor não te dizer agora.", "Não posso prever agora.", "Concentre-se e pergunte novamente.",
-        "Não conte com isso.", "Minha resposta é não.", "Minhas fontes dizem não.",
-        "As perspectivas não são boas.", "Muito duvidoso."
-      ];
-      const resposta = respostas[numeroAleatorio(0, respostas.length - 1)];
-      const pergunta = interaction.options.getString("texto");
-
-      return interaction.reply({
-        embeds: [criarEmbed("🎱 Bola Mágica", `**Pergunta:** ${pergunta}\n**Resposta:** ${resposta}`)],
-      });
-    }
-
-    if (cmd === "ship") {
-      const p1 = interaction.options.getUser("pessoa1");
-      const p2 = interaction.options.getUser("pessoa2");
-      const porcentagem = numeroAleatorio(0, 100);
-
-      let frase = "Talvez só amizade...";
-      if (porcentagem >= 90) frase = "Casamento marcado! 💍";
-      else if (porcentagem >= 70) frase = "Química forte!";
-      else if (porcentagem >= 40) frase = "Tem potencial...";
-
-      return interaction.reply({
-        embeds: [criarEmbed("💘 Ship", `${p1} + ${p2}\n\n**${porcentagem}%** de compatibilidade\n${frase}`)],
-      });
-    }
-
-    if (cmd === "abracar") {
-      const alvo = interaction.options.getUser("usuario");
-      return interaction.reply({
-        embeds: [criarEmbed("🤗 Abraço", `${interaction.user} deu um abraço apertado em ${alvo}!`)],
-      });
-    }
-
-    if (cmd === "beijar") {
-      const alvo = interaction.options.getUser("usuario");
-      return interaction.reply({
-        embeds: [criarEmbed("💋 Beijo", `${interaction.user} deu um beijo em ${alvo}! 💕`)],
-      });
-    }
-
-    if (cmd === "tapa") {
-      const alvo = interaction.options.getUser("usuario");
-      return interaction.reply({
-        embeds: [criarEmbed("👋 Tapa", `${interaction.user} deu um tapa em ${alvo}! 💥`)],
-      });
-    }
-
-    if (cmd === "casar") {
-      const alvo = interaction.options.getUser("usuario");
-      if (alvo.id === interaction.user.id) {
-        return interaction.reply({ content: "Você não pode casar consigo mesmo.", ephemeral: true });
-      }
-      if (data.marriages[interaction.user.id] || data.marriages[alvo.id]) {
-        return interaction.reply({ content: "Um de vocês já está casado.", ephemeral: true });
-      }
-
-      data.marriages[interaction.user.id] = alvo.id;
-      data.marriages[alvo.id] = interaction.user.id;
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("💍 Casamento!", `${interaction.user} e ${alvo} agora estão casados! Parabéns! 🎉`)],
-      });
-    }
-
-    if (cmd === "divorciar") {
-      const conjugeId = data.marriages[interaction.user.id];
-      if (!conjugeId) {
-        return interaction.reply({ content: "Você não está casado.", ephemeral: true });
-      }
-
-      delete data.marriages[interaction.user.id];
-      delete data.marriages[conjugeId];
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("💔 Divórcio", `${interaction.user} se divorciou de <@${conjugeId}>.`)],
-      });
-    }
-
-    if (cmd === "rate") {
-      const texto = interaction.options.getString("texto");
-      const nota = numeroAleatorio(0, 10);
-      return interaction.reply({
-        embeds: [criarEmbed("⭐ Avaliação", `**${texto}**\nNota: **${nota}/10**`)],
-      });
-    }
-
-    if (cmd === "limpar") {
-      const quantidade = interaction.options.getInteger("quantidade");
-      await interaction.channel.bulkDelete(quantidade, true);
-      return interaction.reply({ content: `🧹 **${quantidade}** mensagens apagadas.`, ephemeral: true });
-    }
-
-    if (cmd === "expulsar") {
-      const alvo = interaction.options.getUser("usuario");
-      const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
-      const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
-
-      if (!membro) return interaction.reply({ content: "Membro não encontrado.", ephemeral: true });
-      if (!membro.kickable) return interaction.reply({ content: "Não posso expulsar este membro.", ephemeral: true });
-
-      await membro.kick(motivo);
-      return interaction.reply({
-        embeds: [criarEmbed("👢 Membro expulso", `${alvo} foi expulso.\n**Motivo:** ${motivo}`)],
-      });
-    }
-
-    if (cmd === "banir") {
-      const alvo = interaction.options.getUser("usuario");
-      const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
-      const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
-
-      if (membro && !membro.bannable) {
-        return interaction.reply({ content: "Não posso banir este membro.", ephemeral: true });
-      }
-
-      await interaction.guild.members.ban(alvo.id, { reason: motivo });
-      return interaction.reply({
-        embeds: [criarEmbed("🔨 Membro banido", `${alvo} foi banido.\n**Motivo:** ${motivo}`)],
-      });
-    }
-
-    if (cmd === "timeout") {
-      const alvo = interaction.options.getUser("usuario");
-      const minutos = interaction.options.getInteger("minutos");
-      const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
-      const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
-
-      if (!membro) return interaction.reply({ content: "Membro não encontrado.", ephemeral: true });
-      if (!membro.moderatable) return interaction.reply({ content: "Não posso silenciar este membro.", ephemeral: true });
-
-      await membro.timeout(minutos * 60 * 1000, motivo);
-      return interaction.reply({
-        embeds: [criarEmbed("🔇 Timeout aplicado", `${alvo} foi silenciado por **${minutos} minutos**.\n**Motivo:** ${motivo}`)],
-      });
-    }
-
-    if (cmd === "avisar") {
-      const alvo = interaction.options.getUser("usuario");
-      const motivo = interaction.options.getString("motivo");
-
-      if (!data.warns[alvo.id]) data.warns[alvo.id] = [];
-      data.warns[alvo.id].push({
-        motivo,
-        moderador: interaction.user.id,
-        data: Date.now(),
-      });
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [
-          criarEmbed(
-            "⚠️ Advertência registrada",
-            `${alvo} recebeu uma advertência.\n**Motivo:** ${motivo}\n**Total de avisos:** ${data.warns[alvo.id].length}`
-          ),
-        ],
-      });
-    }
-
-    if (cmd === "avisos") {
-      const alvo = interaction.options.getUser("usuario");
-      const avisos = data.warns[alvo.id] || [];
-
-      if (avisos.length === 0) {
-        return interaction.reply({
-          embeds: [criarEmbed("📋 Advertências", `${alvo} não possui advertências.`)],
-        });
-      }
-
-      const texto = avisos
-        .map((a, i) => `**${i + 1}.** ${a.motivo}\n*Por <@${a.moderador}> em <t:${Math.floor(a.data / 1000)}:d>*`)
-        .join("\n\n");
-
-      return interaction.reply({
-        embeds: [criarEmbed(`📋 Advertências de ${alvo.username}`, texto)],
-      });
-    }
-
-    if (cmd === "limparavisos") {
-      const alvo = interaction.options.getUser("usuario");
-      data.warns[alvo.id] = [];
-      salvarDados();
-
-      return interaction.reply({
-        embeds: [criarEmbed("✅ Avisos limpos", `Todas as advertências de ${alvo} foram removidas.`)],
-      });
-    }
-
-    if (cmd === "lock") {
-      await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
-        SendMessages: false,
-      });
-      return interaction.reply({ embeds: [criarEmbed("🔒 Canal bloqueado", "Ninguém mais pode enviar mensagens neste canal.")] });
-    }
-
-    if (cmd === "unlock") {
-      await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
-        SendMessages: null,
-      });
-      return interaction.reply({ embeds: [criarEmbed("🔓 Canal desbloqueado", "O canal foi liberado novamente.")] });
-    }
-
-    if (cmd === "dizer") {
-      const texto = interaction.options.getString("texto");
-      await interaction.reply({ content: "Mensagem enviada!", ephemeral: true });
-      await interaction.channel.send(texto);
-      return;
-    }
-
-    if (cmd === "anunciar") {
-      const titulo = interaction.options.getString("titulo");
-      const texto = interaction.options.getString("texto");
-      const canal = interaction.options.getChannel("canal") || interaction.channel;
-
-      const embed = criarEmbed(titulo, texto, 0xffaa00);
-      await canal.send({ embeds: [embed] });
-      return interaction.reply({ content: "Anúncio publicado!", ephemeral: true });
-    }
-
-    if (cmd === "ticket") {
-      const nomeCanal = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "");
-      const existente = interaction.guild.channels.cache.find(
-        c => c.name === nomeCanal && c.type === ChannelType.GuildText
-      );
-
-      if (existente) {
-        return interaction.reply({ content: `Você já tem um ticket aberto: ${existente}`, ephemeral: true });
-      }
-
-      const canal = await interaction.guild.channels.create({
-        name: nomeCanal,
-        type: ChannelType.GuildText,
-        parent: interaction.channel.parentId,
-        permissionOverwrites: [
-          { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-          { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        ],
-      });
-
-      await canal.send({
-        content: `${interaction.user}`,
-        embeds: [
-          criarEmbed(
-            "🎫 Ticket aberto",
-            "Explique seu problema ou dúvida. A equipe irá te atender em breve.\n\nUse `/fecharticket` para fechar."
-          ),
-        ],
-      });
-
-      return interaction.reply({ content: `Ticket criado: ${canal}`, ephemeral: true });
-    }
-
-    if (cmd === "fecharticket") {
-      if (!interaction.channel.name.startsWith("ticket-")) {
-        return interaction.reply({ content: "Este comando só funciona em canais de ticket.", ephemeral: true });
-      }
-
-      await interaction.reply({ content: "Ticket será fechado em 5 segundos..." });
-      setTimeout(() => {
-        interaction.channel.delete().catch(() => {});
-      }, 5000);
-      return;
-    }
-
-  } catch (error) {
-    console.error(`Erro no comando ${cmd}:`, error);
-    const msg = { content: "Ocorreu um erro ao executar este comando.", ephemeral: true };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(msg).catch(() => {});
-    } else {
-      await interaction.reply(msg).catch(() => {});
-    }
-  }
-});
-
-client.login(TOKEN);
+   
