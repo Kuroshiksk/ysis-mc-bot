@@ -15,10 +15,10 @@ const {
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-// ============================================================
+// ============================================
 // YSIS MC — BOT MULTIFUNÇÕES
 // Créditos: Kuroshi
-// ============================================================
+// ============================================
 
 const {
   DISCORD_TOKEN,
@@ -38,7 +38,9 @@ const IP_MINECRAFT = MINECRAFT_IP || 'YSISmc.aternos.me:50061';
 const DATA_FILE = path.join(DATA_DIR, 'ysis-data.json');
 
 if (!DISCORD_TOKEN || !CLIENT_ID || !GUILD_ID) {
-  console.error('Configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID no Railway.');
+  console.error(
+    'Configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID no Railway.'
+  );
   process.exit(1);
 }
 
@@ -73,45 +75,50 @@ function defaultUser() {
 }
 
 function getUser(userId) {
-  if (!data.users[userId]) data.users[userId] = defaultUser();
+  if (!data.users[userId]) {
+    data.users[userId] = defaultUser();
+  }
+
   return data.users[userId];
 }
 
 let saveQueue = Promise.resolve();
 
+async function saveData() {
+  saveQueue = saveQueue.then(async () => {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+
+    const tempFile = `${DATA_FILE}.tmp`;
+
+    await fs.writeFile(
+      tempFile,
+      JSON.stringify(data, null, 2),
+      'utf8'
+    );
+
+    await fs.rename(tempFile, DATA_FILE);
+  }).catch(error => {
+    console.error('Erro ao salvar os dados:', error.message);
+  });
+
+  return saveQueue;
+}
+
 async function loadData() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
+
     const raw = await fs.readFile(DATA_FILE, 'utf8');
     const parsed = JSON.parse(raw);
+
     data = { ...data, ...parsed };
   } catch (error) {
     if (error.code !== 'ENOENT') {
-      console.error('Erro ao ler dados:', error.message);
+      console.error('Erro ao carregar dados:', error.message);
     }
+
     await saveData();
   }
-}
-
-function saveData() {
-  saveQueue = saveQueue
-    .then(async () => {
-      await fs.mkdir(DATA_DIR, { recursive: true });
-      const tempFile = `${DATA_FILE}.tmp`;
-
-      await fs.writeFile(
-        tempFile,
-        JSON.stringify(data, null, 2),
-        'utf8'
-      );
-
-      await fs.rename(tempFile, DATA_FILE);
-    })
-    .catch(error => {
-      console.error('Erro ao salvar dados:', error.message);
-    });
-
-  return saveQueue;
 }
 
 function makeEmbed(title, description, color = COR) {
@@ -119,7 +126,9 @@ function makeEmbed(title, description, color = COR) {
     .setColor(color)
     .setTitle(title)
     .setDescription(description)
-    .setFooter({ text: `YSIS MC • Créditos: ${CREDITOS}` })
+    .setFooter({
+      text: `YSIS MC • Créditos: ${CREDITOS}`
+    })
     .setTimestamp();
 }
 
@@ -147,7 +156,7 @@ async function sendToChannel(channelId, payload) {
       await channel.send(payload);
     }
   } catch (error) {
-    console.error(`Erro no canal ${channelId}:`, error.message);
+    console.error('Erro ao enviar mensagem:', error.message);
   }
 }
 
@@ -161,7 +170,7 @@ async function logAction(interaction, description) {
       ).addFields(
         {
           name: 'Responsável',
-          value: `${interaction.user.tag} (\`${interaction.user.id}\`)`
+          value: `${interaction.user.tag} (${interaction.user.id})`
         },
         {
           name: 'Canal',
@@ -189,13 +198,13 @@ function prettyDuration(ms) {
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
 }
 
-function safeReason(text, fallback = 'Não informado') {
-  return text?.trim() || fallback;
+function safeReason(text) {
+  return text?.trim() || 'Não informado';
 }
 
-// ============================================================
+// ============================================
 // COMANDOS
-// ============================================================
+// ============================================
 
 const commands = [
   new SlashCommandBuilder()
@@ -204,11 +213,11 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('ip')
-    .setDescription('Veja o endereço do servidor Minecraft'),
+    .setDescription('Veja o endereço do Minecraft'),
 
   new SlashCommandBuilder()
     .setName('site')
-    .setDescription('Acesse o site oficial do YSIS MC'),
+    .setDescription('Acesse o site oficial'),
 
   new SlashCommandBuilder()
     .setName('ping')
@@ -216,54 +225,54 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('avatar')
-    .setDescription('Mostra o avatar de alguém')
+    .setDescription('Mostre o avatar de alguém')
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Pessoa (opcional)')
+        .setDescription('Pessoa')
         .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('usuario')
-    .setDescription('Veja informações de um membro')
+    .setDescription('Informações de um membro')
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Pessoa (opcional)')
+        .setDescription('Pessoa')
         .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('servidor')
-    .setDescription('Veja informações deste servidor'),
+    .setDescription('Informações do servidor Discord'),
 
   new SlashCommandBuilder()
     .setName('perfil')
-    .setDescription('Veja seu perfil social e nível')
+    .setDescription('Veja seu perfil social')
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Pessoa (opcional)')
+        .setDescription('Pessoa')
         .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('rank')
-    .setDescription('Veja seu nível e progresso')
+    .setDescription('Veja seu nível')
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Pessoa (opcional)')
+        .setDescription('Pessoa')
         .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('daily')
-    .setDescription('Resgate sua recompensa diária'),
+    .setDescription('Resgate moedas diariamente'),
 
   new SlashCommandBuilder()
     .setName('saldo')
-    .setDescription('Veja seu saldo ou o de alguém')
+    .setDescription('Veja seu saldo')
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Pessoa (opcional)')
+        .setDescription('Pessoa')
         .setRequired(false)
     ),
 
@@ -285,17 +294,17 @@ const commands = [
     .setDescription('Defina seu status AFK')
     .addStringOption(o =>
       o.setName('motivo')
-        .setDescription('Motivo (opcional)')
-        .setRequired(false)
+        .setDescription('Motivo')
         .setMaxLength(200)
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('banho')
-    .setDescription('Mande alguém tomar um banho 😂')
+    .setDescription('Mande alguém tomar banho')
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Quem precisa de um banho?')
+        .setDescription('Quem precisa de banho?')
         .setRequired(true)
     ),
 
@@ -309,13 +318,13 @@ const commands = [
     .addStringOption(o =>
       o.setName('pergunta')
         .setDescription('Sua pergunta')
-        .setRequired(true)
         .setMaxLength(300)
+        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
     .setName('abraco')
-    .setDescription('Mande um abraço para alguém')
+    .setDescription('Mande um abraço')
     .addUserOption(o =>
       o.setName('membro')
         .setDescription('Quem vai receber?')
@@ -324,7 +333,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('ship')
-    .setDescription('Calcule a compatibilidade de duas pessoas')
+    .setDescription('Calcule a compatibilidade')
     .addUserOption(o =>
       o.setName('pessoa1')
         .setDescription('Primeira pessoa')
@@ -338,62 +347,62 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('enquete')
-    .setDescription('Crie uma enquete com duas opções')
+    .setDescription('Crie uma enquete')
     .addStringOption(o =>
       o.setName('pergunta')
-        .setDescription('Pergunta da enquete')
-        .setRequired(true)
+        .setDescription('Pergunta')
         .setMaxLength(250)
+        .setRequired(true)
     )
     .addStringOption(o =>
       o.setName('opcao1')
         .setDescription('Primeira opção')
-        .setRequired(true)
         .setMaxLength(80)
+        .setRequired(true)
     )
     .addStringOption(o =>
       o.setName('opcao2')
         .setDescription('Segunda opção')
-        .setRequired(true)
         .setMaxLength(80)
+        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
     .setName('anunciar')
-    .setDescription('Envie um anúncio no canal atual')
+    .setDescription('Envie um anúncio')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o =>
       o.setName('mensagem')
         .setDescription('Texto do anúncio')
-        .setRequired(true)
         .setMaxLength(1800)
+        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
     .setName('dizer')
-    .setDescription('Faça o bot enviar uma mensagem no canal atual')
+    .setDescription('Envie uma mensagem pelo bot')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .addStringOption(o =>
       o.setName('mensagem')
-        .setDescription('Mensagem a enviar')
-        .setRequired(true)
+        .setDescription('Mensagem')
         .setMaxLength(1800)
+        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
     .setName('aviso')
-    .setDescription('Registre um aviso para um membro')
+    .setDescription('Registre um aviso')
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Membro que receberá o aviso')
+        .setDescription('Membro')
         .setRequired(true)
     )
     .addStringOption(o =>
       o.setName('motivo')
-        .setDescription('Motivo do aviso')
-        .setRequired(true)
+        .setDescription('Motivo')
         .setMaxLength(500)
+        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
@@ -402,7 +411,7 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Membro consultado')
+        .setDescription('Membro')
         .setRequired(true)
     ),
 
@@ -413,9 +422,9 @@ const commands = [
     .addIntegerOption(o =>
       o.setName('quantidade')
         .setDescription('Quantidade entre 1 e 100')
-        .setRequired(true)
         .setMinValue(1)
         .setMaxValue(100)
+        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
@@ -424,14 +433,14 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Membro a expulsar')
+        .setDescription('Membro')
         .setRequired(true)
     )
     .addStringOption(o =>
       o.setName('motivo')
         .setDescription('Motivo')
-        .setRequired(false)
         .setMaxLength(500)
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
@@ -440,14 +449,14 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Membro a banir')
+        .setDescription('Membro')
         .setRequired(true)
     )
     .addStringOption(o =>
       o.setName('motivo')
         .setDescription('Motivo')
-        .setRequired(false)
         .setMaxLength(500)
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
@@ -456,30 +465,30 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Membro a silenciar')
+        .setDescription('Membro')
         .setRequired(true)
     )
     .addIntegerOption(o =>
       o.setName('minutos')
-        .setDescription('Duração em minutos (1 a 40320)')
-        .setRequired(true)
+        .setDescription('Duração em minutos')
         .setMinValue(1)
         .setMaxValue(40320)
+        .setRequired(true)
     )
     .addStringOption(o =>
       o.setName('motivo')
         .setDescription('Motivo')
-        .setRequired(false)
         .setMaxLength(500)
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('untimeout')
-    .setDescription('Retire o silêncio temporário de um membro')
+    .setDescription('Retire o silêncio de um membro')
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o =>
       o.setName('membro')
-        .setDescription('Membro a liberar')
+        .setDescription('Membro')
         .setRequired(true)
     ),
 
@@ -490,18 +499,18 @@ const commands = [
     .addIntegerOption(o =>
       o.setName('segundos')
         .setDescription('0 a 21600 segundos')
-        .setRequired(true)
         .setMinValue(0)
         .setMaxValue(21600)
+        .setRequired(true)
     )
 ].map(command => command.toJSON());
 
 // ============================================
-// INICIALIZAÇÃO E REGISTRO DOS COMANDOS
+// INICIALIZAÇÃO
 // ============================================
 
 client.once('ready', async () => {
-  console.log(`✅ YSIS MC online como ${client.user.tag}`);
+  console.log(`YSIS MC online como ${client.user.tag}`);
 
   try {
     const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
@@ -511,14 +520,14 @@ client.once('ready', async () => {
       { body: commands }
     );
 
-    console.log(`✅ ${commands.length} comandos registrados.`);
+    console.log(`${commands.length} comandos registrados.`);
   } catch (error) {
     console.error('Erro ao registrar comandos:', error);
   }
 });
 
 // ============================================
-// BOAS-VINDAS E DESPEDIDAS
+// ENTRADAS E SAÍDAS
 // ============================================
 
 client.on('guildMemberAdd', async member => {
@@ -534,8 +543,7 @@ client.on('guildMemberAdd', async member => {
     components: [siteButton()]
   });
 
-  await sendToChannel(
-    LOG_CHANNEL_ID,
+  await sendToChannel(LOG_CHANNEL_ID,
     `📥 Entrada: **${member.user.tag}** (\`${member.id}\`)`
   );
 });
@@ -551,14 +559,13 @@ client.on('guildMemberRemove', async member => {
     ]
   });
 
-  await sendToChannel(
-    LOG_CHANNEL_ID,
+  await sendToChannel(LOG_CHANNEL_ID,
     `📤 Saída: **${member.user.tag}** (\`${member.id}\`)`
   );
 });
 
 // ============================================
-// XP, NÍVEIS, AFK E DETECÇÃO SIMPLES DE SPAM
+// XP, NÍVEIS, AFK E ALERTA DE SPAM
 // ============================================
 
 client.on('messageCreate', async message => {
@@ -595,15 +602,16 @@ client.on('messageCreate', async message => {
   if (now - lastXp >= 60000) {
     xpCooldowns.set(message.author.id, now);
 
-    const u = getUser(message.author.id);
-    u.xp += 5 + Math.floor(Math.random() * 11);
+    const memberData = getUser(message.author.id);
+
+    memberData.xp += 5 + Math.floor(Math.random() * 11);
 
     let leveledUp = false;
 
-    while (u.xp >= xpRequired(u.level)) {
-      u.xp -= xpRequired(u.level);
-      u.level += 1;
-      u.coins += 50;
+    while (memberData.xp >= xpRequired(memberData.level)) {
+      memberData.xp -= xpRequired(memberData.level);
+      memberData.level += 1;
+      memberData.coins += 50;
       leveledUp = true;
     }
 
@@ -611,19 +619,19 @@ client.on('messageCreate', async message => {
 
     if (leveledUp) {
       await message.channel.send(
-        `✨ Parabéns ${message.author}! Você subiu para o ` +
-        `**nível ${u.level}** e ganhou 🪙 50 moedas!`
+        `✨ Parabéns ${message.author}! Você chegou ao ` +
+        `**nível ${memberData.level}** e ganhou 🪙 50 moedas!`
       ).catch(() => {});
     }
   }
 
-  const list = (spamTracker.get(message.author.id) || [])
+  const recent = (spamTracker.get(message.author.id) || [])
     .filter(timestamp => now - timestamp < 6000);
 
-  list.push(now);
-  spamTracker.set(message.author.id, list);
+  recent.push(now);
+  spamTracker.set(message.author.id, recent);
 
-  if (list.length === 7) {
+  if (recent.length === 7) {
     await sendToChannel(
       LOG_CHANNEL_ID,
       `🚨 Possível spam de ${message.author.tag} em ${message.channel} ` +
@@ -633,7 +641,7 @@ client.on('messageCreate', async message => {
 });
 
 // ============================================
-// COMANDOS DO BOT
+// INTERAÇÕES
 // ============================================
 
 client.on('interactionCreate', async interaction => {
@@ -655,7 +663,7 @@ client.on('interactionCreate', async interaction => {
             '`/rep` `/afk` `/avatar` `/usuario` `/servidor`\n\n' +
             '**😂 DIVERSÃO**\n' +
             '`/banho` `/moeda` `/bolamagica` `/abraco` `/ship` `/enquete`\n\n' +
-            '**🛡️ MODERAÇÃO — EQUIPE**\n' +
+            '**🛡️ MODERAÇÃO**\n' +
             '`/aviso` `/avisos` `/limpar` `/kick` `/ban` ' +
             '`/timeout` `/untimeout` `/slowmode` `/anunciar` `/dizer`'
           )
@@ -684,8 +692,7 @@ client.on('interactionCreate', async interaction => {
         embeds: [
           makeEmbed(
             '🌐 Site oficial do YSIS MC',
-            `Acesse o site e confira o projeto!\n\n` +
-            `[**Abrir site**](${SITE})\n\n` +
+            `Acesse o site do projeto!\n\n[**Abrir site**](${SITE})\n\n` +
             `✍️ **Créditos:** ${CREDITOS}`
           )
         ],
@@ -699,7 +706,7 @@ client.on('interactionCreate', async interaction => {
           makeEmbed(
             '🏓 Pong!',
             `Latência do bot: **${client.ws.ping} ms**\n` +
-            `Tempo de resposta: **${Date.now() - interaction.createdTimestamp} ms**`
+            `Resposta: **${Date.now() - interaction.createdTimestamp} ms**`
           )
         ],
         flags: MessageFlags.Ephemeral
@@ -735,7 +742,7 @@ client.on('interactionCreate', async interaction => {
         }
       ];
 
-      if (member && member.joinedTimestamp) {
+      if (member?.joinedTimestamp) {
         fields.push({
           name: 'Entrou no servidor',
           value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>`,
@@ -745,10 +752,7 @@ client.on('interactionCreate', async interaction => {
 
       return interaction.reply({
         embeds: [
-          makeEmbed(
-            '👤 Informações do usuário',
-            `Informações de ${target}.`
-          )
+          makeEmbed('👤 Informações do usuário', `Informações de ${target}.`)
             .addFields(fields)
             .setThumbnail(target.displayAvatarURL())
         ]
@@ -756,17 +760,17 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (cmd === 'servidor') {
-      const g = interaction.guild;
+      const guild = interaction.guild;
       const embed = makeEmbed(
-        `🏰 ${g.name}`,
-        `**Dono:** <@${g.ownerId}>\n` +
-        `**Membros:** ${g.memberCount}\n` +
-        `**Canais:** ${g.channels.cache.size}\n` +
-        `**Criado em:** <t:${Math.floor(g.createdTimestamp / 1000)}:D>`,
+        `🏰 ${guild.name}`,
+        `**Dono:** <@${guild.ownerId}>\n` +
+        `**Membros:** ${guild.memberCount}\n` +
+        `**Canais:** ${guild.channels.cache.size}\n` +
+        `**Criado em:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>`,
         0x5865f2
       );
 
-      const icon = g.iconURL({ size: 512 });
+      const icon = guild.iconURL({ size: 512 });
       if (icon) embed.setThumbnail(icon);
 
       return interaction.reply({ embeds: [embed] });
@@ -774,567 +778,12 @@ client.on('interactionCreate', async interaction => {
 
     if (cmd === 'perfil' || cmd === 'rank') {
       const target = interaction.options.getUser('membro') || user;
-      const u = getUser(target.id);
-      const need = xpRequired(u.level);
-
-      const embed = makeEmbed(
-        cmd === 'rank'
-          ? `🏆 Nível de ${target.username}`
-          : `👤 Perfil de ${target.username}`,
-        `**Nível:** ${u.level}\n` +
-        `**XP:** ${u.xp}/${need}\n` +
-        `**Progresso:** ${Math.floor((u.xp / need) * 100)}%\n` +
-        `**Moedas:** 🪙 ${u.coins}\n` +
-        `**Reputação:** ⭐ ${u.rep}`
-      ).setThumbnail(target.displayAvatarURL());
-
-      await saveData();
-
-      return interaction.reply({ embeds: [embed] });
-    }
-
-    if (cmd === 'saldo') {
-      const target = interaction.options.getUser('membro') || user;
-      const u = getUser(target.id);
+      const memberData = getUser(target.id);
+      const needed = xpRequired(memberData.level);
+      const progress = Math.floor((memberData.xp / needed) * 100);
 
       await saveData();
 
       return interaction.reply({
         embeds: [
-          makeEmbed(
-            '🪙 Carteira',
-            `${target} tem **${u.coins} moedas**.`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'daily') {
-      const u = getUser(user.id);
-      const now = Date.now();
-      const wait = 86400000 - (now - u.lastDaily);
-
-      if (wait > 0) {
-        return interaction.reply({
-          content: `⏳ Você já recebeu sua recompensa. Volte em **${prettyDuration(wait)}**.`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      const reward = 100 + Math.floor(Math.random() * 101);
-      u.coins += reward;
-      u.lastDaily = now;
-
-      await saveData();
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '🎁 Recompensa diária',
-            `Você recebeu **🪙 ${reward} moedas**!\n` +
-            `Seu saldo agora é **${u.coins}**.`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'trabalhar') {
-      const u = getUser(user.id);
-      const now = Date.now();
-      const wait = 3600000 - (now - u.lastWork);
-
-      if (wait > 0) {
-        return interaction.reply({
-          content: `🛠️ Você está cansado. Tente novamente em **${prettyDuration(wait)}**.`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      const jobs = [
-        'minerou diamantes',
-        'plantou uma fazenda',
-        'construiu uma base',
-        'negociou com aldeões',
-        'explorou uma caverna'
-      ];
-
-      const reward = 25 + Math.floor(Math.random() * 76);
-      u.coins += reward;
-      u.lastWork = now;
-
-      await saveData();
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '🛠️ Trabalho concluído',
-            `Você ${jobs[Math.floor(Math.random() * jobs.length)]} ` +
-            `e recebeu **🪙 ${reward} moedas**!`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'rep') {
-      const target = interaction.options.getUser('membro');
-
-      if (target.id === user.id || target.bot) {
-        return interaction.reply({
-          content: '❌ Você não pode dar reputação a si mesmo ou a um bot.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      const key = `${user.id}:${target.id}`;
-      const last = data.repCooldowns[key] || 0;
-      const wait = 43200000 - (Date.now() - last);
-
-      if (wait > 0) {
-        return interaction.reply({
-          content: `⏳ Você já deu reputação a essa pessoa. Aguarde **${prettyDuration(wait)}**.`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      getUser(target.id).rep += 1;
-      data.repCooldowns[key] = Date.now();
-
-      await saveData();
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '⭐ Reputação enviada',
-            `${user} deu +1 de reputação para ${target}!`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'afk') {
-      const reason = interaction.options.getString('motivo') ||
-        'Não informou um motivo';
-
-      data.afk[user.id] = {
-        reason,
-        since: Date.now()
-      };
-
-      await saveData();
-
-      return interaction.reply({
-        content: `💤 ${user}, seu AFK foi ativado. Motivo: ${reason}`
-      });
-    }
-
-    if (cmd === 'banho') {
-      const target = interaction.options.getUser('membro');
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '🧼 OPERAÇÃO BANHO',
-            `🚿 ${target}, chegou a hora do banho!\n` +
-            '🧽 Sabão equipado. Água ativada. Sem desculpas!',
-            0x00bcd4
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'moeda') {
-      const result = Math.random() < 0.5 ? '🪙 Cara' : '🪙 Coroa';
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '🪙 Cara ou coroa',
-            `${user} jogou a moeda...\n\n**${result}!**`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'bolamagica') {
-      const q = interaction.options.getString('pergunta');
-
-      const answers = [
-        'Com certeza!',
-        'É muito provável.',
-        'Pode ser...',
-        'Não conte com isso.',
-        'As estrelas dizem que sim.',
-        'Melhor perguntar novamente depois.',
-        'Minhas fontes dizem que não.',
-        'Impossível saber agora.'
-      ];
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '🔮 Bola mágica',
-            `**Pergunta:** ${q}\n\n` +
-            `**Resposta:** ${answers[Math.floor(Math.random() * answers.length)]}`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'abraco') {
-      const target = interaction.options.getUser('membro');
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '🫂 Abraço virtual',
-            `${user} mandou um abraço apertado para ${target}! 💚`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'ship') {
-      const a = interaction.options.getUser('pessoa1');
-      const b = interaction.options.getUser('pessoa2');
-      const score = Math.floor(Math.random() * 101);
-
-      const result = score >= 80
-        ? '💍 Casamento no Nether!'
-        : score >= 50
-          ? '💚 Tem potencial!'
-          : '💀 Só amizade por enquanto...';
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(
-            '💞 Calculadora de ship',
-            `**${a.username} + ${b.username}**\n\n` +
-            `Compatibilidade: **${score}%**\n${result}`
-          )
-        ]
-      });
-    }
-
-    if (cmd === 'enquete') {
-      const question = interaction.options.getString('pergunta');
-      const a = interaction.options.getString('opcao1');
-      const b = interaction.options.getString('opcao2');
-
-      const poll = await interaction.reply({
-        embeds: [
-          makeEmbed(
-            `📊 Enquete: ${question}`,
-            `🇦 **${a}**\n🇧 **${b}**\n\nVote usando as reações abaixo!`
-          )
-        ],
-        fetchReply: true
-      });
-
-      await poll.react('🇦');
-      await poll.react('🇧');
-
-      return;
-    }
-
-    if (cmd === 'anunciar') {
-      const text = interaction.options.getString('mensagem');
-
-      await interaction.reply({
-        content: '✅ Anúncio enviado.',
-        flags: MessageFlags.Ephemeral
-      });
-
-      await interaction.channel.send({
-        embeds: [makeEmbed('📢 Anúncio oficial', text)]
-      });
-
-      await logAction(interaction, '📢 Publicou um anúncio.');
-      return;
-    }
-
-    if (cmd === 'dizer') {
-      const text = interaction.options.getString('mensagem');
-
-      await interaction.reply({
-        content: '✅ Mensagem enviada.',
-        flags: MessageFlags.Ephemeral
-      });
-
-      await interaction.channel.send({ content: text });
-      await logAction(interaction, '💬 Usou o comando /dizer.');
-      return;
-    }
-
-    // ========================================
-    // MODERAÇÃO
-    // ========================================
-
-    if (cmd === 'aviso') {
-      const target = interaction.options.getUser('membro');
-      const reason = interaction.options.getString('motivo');
-
-      if (!data.warnings[target.id]) {
-        data.warnings[target.id] = [];
-      }
-
-      data.warnings[target.id].push({
-        by: user.id,
-        reason,
-        at: Date.now()
-      });
-
-      await saveData();
-
-      await interaction.reply({
-        content:
-          `⚠️ Aviso registrado para ${target}. ` +
-          `Total de avisos: **${data.warnings[target.id].length}**.`,
-        flags: MessageFlags.Ephemeral
-      });
-
-      await logAction(
-        interaction,
-        `⚠️ Aviso para ${target.tag} (\`${target.id}\`)\n` +
-        `**Motivo:** ${reason}`
-      );
-
-      return;
-    }
-
-    if (cmd === 'avisos') {
-      const target = interaction.options.getUser('membro');
-      const list = data.warnings[target.id] || [];
-
-      const text = list.length
-        ? list.slice(-10).map((w, i) =>
-            `**${i + 1}.** ${w.reason} — <@${w.by}> — ` +
-            `<t:${Math.floor(w.at / 1000)}:d>`
-          ).join('\n')
-        : 'Nenhum aviso registrado.';
-
-      return interaction.reply({
-        embeds: [
-          makeEmbed(`⚠️ Avisos de ${target.tag}`, text)
-        ],
-        flags: MessageFlags.Ephemeral
-      });
-    }
-
-    if (cmd === 'limpar') {
-      const amount = interaction.options.getInteger('quantidade');
-
-      if (
-        !interaction.channel ||
-        !interaction.channel.isTextBased() ||
-        typeof interaction.channel.bulkDelete !== 'function'
-      ) {
-        return interaction.reply({
-          content: '❌ Não é possível limpar mensagens neste canal.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await interaction.deferReply({
-        flags: MessageFlags.Ephemeral
-      });
-
-      const deleted = await interaction.channel.bulkDelete(amount, true);
-
-      await interaction.editReply(
-        `🧹 Foram apagadas ${deleted.size} mensagens. ` +
-        'Mensagens com mais de 14 dias não são removidas por este comando.'
-      );
-
-      await logAction(
-        interaction,
-        `🧹 Limpou ${deleted.size} mensagens em ${interaction.channel}.`
-      );
-
-      return;
-    }
-
-    if (cmd === 'kick') {
-      const target = interaction.options.getUser('membro');
-      const reason = safeReason(
-        interaction.options.getString('motivo')
-      );
-
-      const member = await interaction.guild.members.fetch(target.id);
-
-      if (!member.kickable) {
-        return interaction.reply({
-          content: '❌ Não posso expulsar esse membro. Confira as permissões e a hierarquia dos cargos.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await member.kick(reason);
-
-      await interaction.reply({
-        content: `👢 ${target.tag} foi expulso. Motivo: ${reason}`,
-        flags: MessageFlags.Ephemeral
-      });
-
-      await logAction(
-        interaction,
-        `👢 Expulsão de ${target.tag} (\`${target.id}\`)\n` +
-        `**Motivo:** ${reason}`
-      );
-
-      return;
-    }
-
-    if (cmd === 'ban') {
-      const target = interaction.options.getUser('membro');
-      const reason = safeReason(
-        interaction.options.getString('motivo')
-      );
-
-      const member = await interaction.guild.members.fetch(target.id);
-
-      if (!member.bannable) {
-        return interaction.reply({
-          content: '❌ Não posso banir esse membro. Confira as permissões e a hierarquia dos cargos.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await member.ban({ reason });
-
-      await interaction.reply({
-        content: `🔨 ${target.tag} foi banido. Motivo: ${reason}`,
-        flags: MessageFlags.Ephemeral
-      });
-
-      await logAction(
-        interaction,
-        `🔨 Banimento de ${target.tag} (\`${target.id}\`)\n` +
-        `**Motivo:** ${reason}`
-      );
-
-      return;
-    }
-
-    if (cmd === 'timeout') {
-      const target = interaction.options.getUser('membro');
-      const mins = interaction.options.getInteger('minutos');
-      const reason = safeReason(
-        interaction.options.getString('motivo')
-      );
-
-      const member = await interaction.guild.members.fetch(target.id);
-
-      if (!member.moderatable) {
-        return interaction.reply({
-          content: '❌ Não consigo aplicar timeout nesse membro. Confira a hierarquia e as permissões.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await member.timeout(mins * 60000, reason);
-
-      await interaction.reply({
-        content: `🔇 ${target.tag} recebeu timeout por ${mins} minuto(s). Motivo: ${reason}`,
-        flags: MessageFlags.Ephemeral
-      });
-
-      await logAction(
-        interaction,
-        `🔇 Timeout: ${target.tag} (\`${target.id}\`) por ${mins} minuto(s).\n` +
-        `**Motivo:** ${reason}`
-      );
-
-      return;
-    }
-
-    if (cmd === 'untimeout') {
-      const target = interaction.options.getUser('membro');
-      const member = await interaction.guild.members.fetch(target.id);
-
-      if (!member.moderatable) {
-        return interaction.reply({
-          content: '❌ Não consigo alterar o timeout desse membro.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await member.timeout(null, `Timeout removido por ${user.tag}`);
-
-      await interaction.reply({
-        content: `🔊 Timeout removido de ${target.tag}.`,
-        flags: MessageFlags.Ephemeral
-      });
-
-      await logAction(
-        interaction,
-        `🔊 Timeout removido de ${target.tag} (\`${target.id}\`).`
-      );
-
-      return;
-    }
-
-    if (cmd === 'slowmode') {
-      const secs = interaction.options.getInteger('segundos');
-
-      if (
-        !interaction.channel ||
-        !interaction.channel.isTextBased() ||
-        typeof interaction.channel.setRateLimitPerUser !== 'function'
-      ) {
-        return interaction.reply({
-          content: '❌ Este canal não permite configurar modo lento.',
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await interaction.channel.setRateLimitPerUser(
-        secs,
-        `Alterado por ${user.tag}`
-      );
-
-      await interaction.reply({
-        content: secs === 0
-          ? '✅ Modo lento desativado.'
-          : `✅ Modo lento definido para ${secs} segundos.`,
-        flags: MessageFlags.Ephemeral
-      });
-
-      await logAction(
-        interaction,
-        `🐢 Modo lento configurado para ${secs} segundos em ${interaction.channel}.`
-      );
-
-      return;
-    }
-  } catch (error) {
-    console.error(`Erro no comando /${cmd}:`, error);
-
-    const response = {
-      content: '❌ Ocorreu um erro. Confira as permissões do bot e os Logs do Railway.',
-      flags: MessageFlags.Ephemeral
-    };
-
-    if (interaction.deferred) {
-      await interaction.editReply({
-        content: response.content
-      }).catch(() => {});
-    } else if (interaction.replied) {
-      await interaction.followUp(response).catch(() => {});
-    } else {
-      await interaction.reply(response).catch(() => {});
-    }
-  }
-});
-
-// ============================================
-// CONEXÃO COM O DISCORD
-// ============================================
-
-(async () => {
-  await loadData();
-
-  client.login(DISCORD_TOKEN).catch(error => {
-    console.error('❌ Não foi possível ligar o bot:', error.message);
-    process.exit(1);
-  });
-})();
+          makeE
