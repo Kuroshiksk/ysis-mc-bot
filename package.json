@@ -1,10 +1,13 @@
 {
-  "name": "ysis-mc-bot",
+  "name": "ysis-mc-discord-bot",
   "version": "1.0.0",
-  "description": "Bot do servidor YSIS MC",
+  "description": "Bot Discord do YSIS MC",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "discord.js": "^14.19.3"
