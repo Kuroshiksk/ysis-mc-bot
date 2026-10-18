@@ -352,17 +352,40 @@ client.on('interactionCreate', async interaction => {
       const reward = 100 + Math.floor(Math.random() * 101); u.coins += reward; u.lastDaily = now; await saveData();
       return interaction.reply({ embeds: [makeEmbed('🎁 Recompensa diária', `Você recebeu **🪙 ${reward} moedas**!\nSeu saldo agora é **${u.coins}**.`)] });
     }
-    if (cmd === 'trabalhar') {
-      const u = getUser(user.id); const now = Date.now(); const wait = 3600000 - (now - u.lastWork);
-      if (wait > 0) return interaction.reply({ content: `🛠️ Você está cansado. Tente novamente em **${prettyDuration(wait)}**.`, flags: MessageFlags.Ephemeral });
-      const jobs = ['minerou diamantes', 'plantou uma fazenda', 'construiu uma base', 'negociou com aldeões', 'explorou uma caverna'];
-      const reward = 25 + Math.floor(Math.random() * 76); u.coins += reward; u.lastWork = now; await saveData();
-      return interaction.reply({ embeds: [makeEmbed('🛠️ Trabalho concluído', `Você ${jobs[Math.floor(Math.random() * jobs.length)]} e recebeu **🪙 ${reward} moedas**!`)] });
-    }
-    if (cmd === 'rep') {
-      const target = interaction.options.getUser('membro');
-      if (target.id === user.id || target.bot) return interaction.reply({ content: '❌ Você não pode dar reputação a si mesmo ou a um bot.', flags: MessageFlags.Ephemeral });
-      const key = `${user.id}:${target.id}`; const last = data.repCooldowns[key] || 0; const wait = 43200000 - (Date.now() - last);
-      if (wait > 0) return interaction.reply({ content: `⏳ Você já deu reputação a essa pessoa. Aguarde **${prettyDuration(wait)}**.`, flags: MessageFlags.Ephemeral });
-      getUser(target.id).rep += 1; data.repCooldowns[key] = Date.now(); await saveData();
-      return interaction.reply({ embeds: [makeEmbed('⭐ Re
+    
+if (cmd === 'rep') {
+  const target = interaction.options.getUser('membro');
+
+  if (target.id === user.id) {
+    return interaction.reply({
+      content: '❌ Você não pode dar reputação para si mesmo!',
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  const key = `${user.id}:${target.id}`;
+  const last = data.repCooldowns[key] || 0;
+  const wait = 86400000 - (Date.now() - last);
+
+  if (wait > 0) {
+    return interaction.reply({
+      content: `⏳ Você já deu reputação para essa pessoa. Aguarde ${prettyDuration(wait)}.`,
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  const targetData = getUser(target.id);
+  targetData.rep = (targetData.rep || 0) + 1;
+  data.repCooldowns[key] = Date.now();
+
+  await saveData();
+
+  return interaction.reply({
+    embeds: [
+      makeEmbed(
+        '⭐ Reputação enviada!',
+        `${user} deu +1 de reputação para ${target}!`
+      )
+    ]
+  });
+}
