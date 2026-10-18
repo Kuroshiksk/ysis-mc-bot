@@ -490,13 +490,23 @@ client.on("interactionCreate", async interaction => {
     }
 
     if (cmd === "avatar") {
-      const usuario = interaction.options.getUser("usuario") || interaction.user;
-      const embed = new EmbedBuilder()
-  .setColor(0x55ff55)
-  .setTitle(`🖼️ Avatar de ${usuario.username}`)
-  .setImage(usuario.displayAvatarURL({ size: 1024 }))
-  .setFooter({ text: "YSIS MC • Feito com carinho" })
-  .setTimestamp();
+  const usuario =
+    interaction.options.getUser("usuario") || interaction.user;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x55ff55)
+    .setTitle(`🖼️ Avatar de ${usuario.username}`)
+    .setImage(usuario.displayAvatarURL({ size: 1024 }))
+    .setDescription(
+      `[🔗 Abrir avatar original](${usuario.displayAvatarURL({
+        size: 1024
+      })})`
+    )
+    .setFooter({ text: "YSIS MC • Feito com carinho" })
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [embed] });
+
     }
 
     if (cmd === "perfil") {
