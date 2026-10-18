@@ -1,86 +1,2090 @@
 
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YSIS-MC | Minecraft</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      color: white;
-      background: #10151c;
-      text-align: center;
-    }
-    header {
-      padding: 35px 15px;
-      background: linear-gradient(#152c24, #10151c);
-      border-bottom: 4px solid #5cb85c;
-    }
-    h1 { font-size: 38px; margin: 10px 0; }
-    h1 span { color: #73df72; }
-    header p { color: #c5d3c7; }
-    main { padding: 25px 16px; }
-    .card {
-      max-width: 430px;
-      margin: 18px auto;
-      padding: 22px;
-      background: #1c2630;
-      border: 2px solid #35483c;
-      border-radius: 12px;
-    }
-    .emoji { font-size: 36px; }
-    h2 { margin: 10px 0; }
-    p { line-height: 1.5; color: #cbd5d1; }
-    a.button {
-      display: inline-block;
-      margin-top: 10px;
-      padding: 12px 20px;
-      background: #3e8e41;
-      color: white;
-      text-decoration: none;
-      font-weight: bold;
-      border-radius: 7px;
-    }
-    a.button:hover { background: #54aa57; }
-    .soon { color: #f4d35e; font-weight: bold; }
-    footer { padding: 22px; color: #84938c; }
-  </style>
-</head>
-<body>
-  <header>
-    <div class="emoji">⛏️</div>
-    <h1>YSIS-<span>MC</span></h1>
-    <p>Sua próxima aventura começa aqui!</p>
-  </header>
+const {
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  REST,
+  Routes,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ChannelType,
+} = require("discord.js");
 
-  <main>
-    <section class="card">
-      <div class="emoji">🌌</div>
-      <h2>Servidor</h2>
-      <p>Entre na nossa comunidade e prepare-se para explorar!</p>
-      <a class="button"
-         href="https://discord.gg/KhV35kxF35"
-         target="_blank" rel="noopener">
-        💬 Entrar no Discord
-      </a>
-    </section>
+const fs = require("node:fs");
+const path = require("node:path");
 
-    <section class="card">
-      <div class="emoji">👑</div>
-      <h2>Créditos</h2>
-      <p>Site criado por <strong>kuroshi</strong>.</p>
-    </section>
+// ==========================================
+// CONFIGURAÇÃO DO YSIS MC
+// ==========================================
 
-    <section class="card">
-      <div class="emoji">🛒</div>
-      <h2>Loja</h2>
-      <p class="soon">🔒 Em breve...</p>
-    </section>
-  </main>
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 
-  <footer>YSIS-MC © 2026 · Feito por kuroshi</footer>
-</body>
-</html>
+const IP = process.env.MINECRAFT_IP || "YSISmc.aternos.me";
+const PORT = process.env.MINECRAFT_PORT || "50061";
+const SITE = process.env.SITE_URL || "https://bit.ly/YsisMc";
+const ATERNOS = process.env.ATERNOS_URL || "https://aternos.org/server/";
+
+const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
+const GOODBYE_CHANNEL_ID = process.env.GOODBYE_CHANNEL_ID;
+
+if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
+  console.error(
+    "ERRO: configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID nas variáveis de ambiente."
+  );
+  process.exit(1);
+}
+
+// ==========================================
+// BANCO DE DADOS EM JSON
+// ==========================================
+
+const DATA_FILE = path.join(process.cwd(), "ysis-data.json");
+
+let data = {
+  users: {},
+  warns: {},
+};
+
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const carregado = JSON.parse(
+      fs.readFileSync(DATA_FILE, "utf8")
+    );
+
+    data = {
+      users: carregado.users || {},
+      warns: carregado.warns || {},
+    };
+  }
+} catch (error) {
+  console.error("Erro ao carregar banco de dados:", error);
+}
+
+function salvarDados() {
+  try {
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify(data, null, 2),
+      "utf8"
+    );
+  } catch (error) {
+    console.error("Erro ao salvar dados:", error);
+  }
+}
+
+function obterUsuario(id) {
+  if (!data.users[id]) {
+    data.users[id] = {
+      coins: 100,
+      bank: 0,
+      inventory: [],
+      xp: 0,
+      lastDaily: 0,
+      lastWork: 0,
+      lastAdventure: 0,
+      lastFish: 0,
+      lastXP: 0,
+    };
+  }
+
+  const user = data.users[id];
+
+  if (typeof user.coins !== "number") user.coins = 100;
+  if (typeof user.bank !== "number") user.bank = 0;
+  if (!Array.isArray(user.inventory)) user.inventory = [];
+  if (typeof user.xp !== "number") user.xp = 0;
+
+  user.lastDaily ||= 0;
+  user.lastWork ||= 0;
+  user.lastAdventure ||= 0;
+  user.lastFish ||= 0;
+  user.lastXP ||= 0;
+
+  return user;
+}
+
+function numeroAleatorio(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function formatarTempo(ms) {
+  const minutos = Math.ceil(ms / 60000);
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+
+  if (horas > 0) return ${horas}h ${resto}min;
+  return ${resto}min;
+}
+
+function criarEmbed(titulo, descricao) {
+  return new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(titulo)
+    .setDescription(descricao)
+    .setFooter({ text: "YSIS MC • Créditos: Kuroshi" })
+    .setTimestamp();
+}
+
+function barraProgresso(atual, total) {
+  const tamanho = 10;
+  const porcentagem = total > 0 ? atual / total : 0;
+  const preenchidos = Math.max(
+    0,
+    Math.min(tamanho, Math.floor(porcentagem * tamanho))
+  );
+
+  return "🟦".repeat(preenchidos) +
+    "⬛".repeat(tamanho - preenchidos);
+}
+
+function nivelDo(xp) {
+  return Math.floor(Math.sqrt(Math.max(0, xp) / 100));
+}
+
+// ==========================================
+// LOJA DO YSIS MC
+// ==========================================
+
+const loja = {
+  cafe: {
+    nome: "Café",
+    emoji: "☕",
+    preco: 15,
+    descricao: "Um café para recuperar a energia.",
+    unico: false,
+  },
+  espada: {
+    nome: "Espada",
+    emoji: "⚔️",
+    preco: 150,
+    descricao: "Uma espada para sua coleção.",
+    unico: true,
+  },
+  picareta: {
+    nome: "Picareta",
+    emoji: "⛏️",
+    preco: 120,
+    descricao: "Uma ferramenta para mineradores.",
+    unico: true,
+  },
+  escudo: {
+    nome: "Escudo",
+    emoji: "🛡️",
+    preco: 100,
+    descricao: "Um escudo para sua coleção.",
+    unico: true,
+  },
+  diamante: {
+    nome: "Diamante",
+    emoji: "💎",
+    preco: 200,
+    descricao: "Um diamante valioso.",
+    unico: false,
+  },
+  peixe: {
+    nome: "Peixe",
+    emoji: "🐟",
+    preco: 30,
+    descricao: "Um peixe pescado durante suas aventuras.",
+    unico: false,
+  },
+};
+
+function nomeItem(item) {
+  return loja[item]?.nome || item;
+}
+
+// ==========================================
+// COMANDOS SLASH
+// ==========================================
+
+const comandos = [
+  // GERAIS
+  new SlashCommandBuilder()
+    .setName("ajuda")
+    .setDescription("Veja os comandos do YSIS MC."),
+
+  new SlashCommandBuilder()
+    .setName("ip")
+    .setDescription("Veja o IP do servidor Minecraft."),
+
+  new SlashCommandBuilder()
+    .setName("site")
+    .setDescription("Veja o site do YSIS MC."),
+
+  new SlashCommandBuilder()
+    .setName("servidor")
+    .setDescription("Veja informações deste servidor do Discord."),
+
+  new SlashCommandBuilder()
+    .setName("avatar")
+    .setDescription("Veja o avatar de alguém.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Pessoa que você quer ver.")
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("perfil")
+    .setDescription("Veja seu perfil, saldo e nível.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Perfil que você quer consultar.")
+        .setRequired(false)
+    ),
+
+  // ECONOMIA
+  new SlashCommandBuilder()
+    .setName("daily")
+    .setDescription("Receba suas moedas diárias."),
+
+  new SlashCommandBuilder()
+    .setName("saldo")
+    .setDescription("Veja seu saldo de moedas.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Saldo de outra pessoa.")
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("trabalhar")
+    .setDescription("Trabalhe para ganhar moedas."),
+
+  new SlashCommandBuilder()
+    .setName("pagar")
+    .setDescription("Envie moedas para outra pessoa.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Quem vai receber.")
+        .setRequired(true)
+    )
+    .addIntegerOption(o =>
+      o.setName("quantia")
+        .setDescription("Quantidade de moedas.")
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("top")
+    .setDescription("Veja o ranking de moedas do servidor."),
+
+  new SlashCommandBuilder()
+    .setName("apostar")
+    .setDescription("Aposte suas moedas e tente dobrá-las.")
+    .addIntegerOption(o =>
+      o.setName("quantia")
+        .setDescription("Quantidade que deseja apostar.")
+        .setMinValue(1)
+        .setRequired(true)
+    ),
+
+  // LOJA
+  new SlashCommandBuilder()
+    .setName("loja")
+    .setDescription("Veja os itens disponíveis para compra."),
+
+  new SlashCommandBuilder()
+    .setName("comprar")
+    .setDescription("Compre um item na loja.")
+    .addStringOption(o =>
+      o.setName("item")
+        .setDescription("Item que deseja comprar.")
+        .setRequired(true)
+        .addChoices(
+          { name: "☕ Café — 15 moedas", value: "cafe" },
+          { name: "⚔️ Espada — 150 moedas", value: "espada" },
+          { name: "⛏️ Picareta — 120 moedas", value: "picareta" },
+          { name: "🛡️ Escudo — 100 moedas", value: "escudo" },
+          { name: "💎 Diamante — 200 moedas", value: "diamante" }
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("inventario")
+    .setDescription("Veja os itens do seu inventário.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Inventário de outra pessoa.")
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("vender")
+    .setDescription("Venda um item do seu inventário.")
+    .addStringOption(o =>
+      o.setName("item")
+        .setDescription("Item que deseja vender.")
+        .setRequired(true)
+        .addChoices(
+          { name: "☕ Café", value: "cafe" },
+          { name: "⚔️ Espada", value: "espada" },
+          { name: "⛏️ Picareta", value: "picareta" },
+          { name: "🛡️ Escudo", value: "escudo" },
+          { name: "💎 Diamante", value: "diamante" },
+          { name: "🐟 Peixe", value: "peixe" }
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("pescar")
+    .setDescription("Pesque peixes e ganhe recompensas."),
+
+  new SlashCommandBuilder()
+    .setName("aventura")
+    .setDescription("Explore o mundo e encontre recompensas."),
+
+  // DIVERSÃO
+  new SlashCommandBuilder()
+    .setName("moeda")
+    .setDescription("Jogue uma moeda para o alto."),
+
+  new SlashCommandBuilder()
+    .setName("dado")
+    .setDescription("Role um dado de seis lados."),
+
+  new SlashCommandBuilder()
+    .setName("pergunta")
+    .setDescription("Faça uma pergunta para a bola mágica.")
+    .addStringOption(o =>
+      o.setName("texto")
+        .setDescription("Sua pergunta.")
+        .setMaxLength(300)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("ship")
+    .setDescription("Veja a porcentagem de compatibilidade.")
+    .addUserOption(o =>
+      o.setName("pessoa1")
+        .setDescription("Primeira pessoa.")
+        .setRequired(true)
+    )
+    .addUserOption(o =>
+      o.setName("pessoa2")
+        .setDescription("Segunda pessoa.")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("banho")
+    .setDescription("Dê um banho em alguém.")
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Quem vai tomar banho.")
+        .setRequired(false)
+    ),
+
+  // MODERAÇÃO
+  new SlashCommandBuilder()
+    .setName("limpar")
+    .setDescription("Apague mensagens do canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o =>
+      o.setName("quantidade")
+        .setDescription("Quantidade de mensagens, de 1 a 100.")
+        .setMinValue(1)
+        .setMaxValue(100)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("expulsar")
+    .setDescription("Expulse uma pessoa do servidor.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Pessoa que será expulsa.")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo da expulsão.")
+        .setMaxLength(500)
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("banir")
+    .setDescription("Bane uma pessoa do servidor.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Pessoa que será banida.")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo do banimento.")
+        .setMaxLength(500)
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("timeout")
+    .setDescription("Silencie temporariamente um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que será silenciado.")
+        .setRequired(true)
+    )
+    .addIntegerOption(o =>
+      o.setName("minutos")
+        .setDescription("Duração em minutos, até 28 dias.")
+        .setMinValue(1)
+        .setMaxValue(40320)
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo do silêncio.")
+        .setMaxLength(500)
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("avisar")
+    .setDescription("Registre uma advertência para um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que receberá a advertência.")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("motivo")
+        .setDescription("Motivo da advertência.")
+        .setMaxLength(500)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("avisos")
+    .setDescription("Consulte as advertências de um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que deseja consultar.")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("limparavisos")
+    .setDescription("Apague as advertências de um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o =>
+      o.setName("usuario")
+        .setDescription("Membro que terá os avisos apagados.")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("lock")
+    .setDescription("Bloqueie o envio de mensagens neste canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+  new SlashCommandBuilder()
+    .setName("unlock")
+    .setDescription("Libere o envio de mensagens neste canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+  new SlashCommandBuilder()
+    .setName("dizer")
+    .setDescription("Faça o bot enviar uma mensagem.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o =>
+      o.setName("texto")
+        .setDescription("Mensagem que será enviada.")
+        .setMaxLength(1800)
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("anunciar")
+    .setDescription("Publique um anúncio em um canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o =>
+      o.setName("titulo")
+        .setDescription("Título do anúncio.")
+        .setMaxLength(200)
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("texto")
+        .setDescription("Conteúdo do anúncio.")
+        .setMaxLength(3500)
+        .setRequired(true)
+    )
+    .addChannelOption(o =>
+      o.setName("canal")
+        .setDescription("Canal onde será publicado.")
+        .addChannelTypes(ChannelType.GuildText)
+        .setRequired(false)
+    ),
+
+  // TICKETS
+  new SlashCommandBuilder()
+    .setName("ticket")
+    .setDescription("Abra um canal privado de atendimento."),
+
+  new SlashCommandBuilder()
+    .setName("fecharticket")
+    .setDescription("Feche o ticket atual."),
+];
+
+// ==========================================
+// CLIENTE DO DISCORD
+// ==========================================
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+  ],
+});
+
+// ==========================================
+// REGISTRAR COMANDOS
+// ==========================================
+
+client.once("ready", async () => {
+  console.log(✅ ${client.user.tag} está online!);
+
+  try {
+    const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: comandos.map(c => c.toJSON()) }
+    );
+
+    console.log(✅ ${comandos.length} comandos registrados.);
+  } catch (error) {
+    console.error("Erro ao registrar comandos:", error);
+  }
+});
+
+// ==========================================
+// BOAS-VINDAS E DESPEDIDA
+// ==========================================
+
+client.on("guildMemberAdd", async membro => {
+  try {
+    const canal =
+      (WELCOME_CHANNEL_ID &&
+        membro.guild.channels.cache.get(WELCOME_CHANNEL_ID)) ||
+      membro.guild.systemChannel;
+
+    if (!canal || !canal.isTextBased()) return;
+
+    const embed = criarEmbed(
+      "👋 Bem-vindo ao YSIS MC!",
+      Olá, ${membro}! Seja bem-vindo(a) ao **${membro.guild.name}**!\n\n +
+      🎮 Entre no nosso Minecraft: **${IP}:${PORT}**\n +
+      🌐 Site: ${SITE}\n +
+      📜 Leia as regras e divirta-se!
+    ).setThumbnail(membro.user.displayAvatarURL());
+
+    await canal.send({ embeds: [embed] });
+  } catch (error) {
+    console.error("Erro na mensagem de boas-vindas:", error);
+  }
+});
+
+client.on("guildMemberRemove", async membro => {
+  try {
+    const canal =
+      (GOODBYE_CHANNEL_ID &&
+        membro.guild.channels.cache.get(GOODBYE_CHANNEL_ID)) ||
+      membro.guild.systemChannel;
+
+    if (!canal || !canal.isTextBased()) return;
+
+    await canal.send(
+      👋 **${membro.user.username}** saiu do servidor. Até a próxima!
+    );
+  } catch (error) {
+    console.error("Erro na mensagem de despedida:", error);
+  }
+});
+
+// ==========================================
+// XP AUTOMÁTICO POR MENSAGENS
+// ==========================================
+
+client.on("messageCreate", async message => {
+  if (!message.guild || message.author.bot) return;
+
+  const user = obterUsuario(message.author.id);
+  const agora = Date.now();
+
+  // Só ganha XP uma vez a cada 60 segundos.
+  if (agora - user.lastXP < 60000) return;
+
+  const nivelAntigo = nivelDo(user.xp);
+
+  user.xp += numeroAleatorio(8, 15);
+  user.lastXP = agora;
+
+  const nivelNovo = nivelDo(user.xp);
+
+  salvarDados();
+
+  if (nivelNovo > nivelAntigo) {
+    try {
+      await message.channel.send(
+        🎉 Parabéns, ${message.author}! Você alcançou o **nível ${nivelNovo}**!
+      );
+    } catch (error) {
+      console.error("Erro ao enviar mensagem de nível:", error);
+    }
+  }
+});
+
+// ==========================================
+// INTERAÇÕES DOS COMANDOS
+// ==========================================
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const cmd = interaction.commandName;
+  const agora = Date.now();
+
+  try {
+    // --------------------------------------
+    // AJUDA
+    // --------------------------------------
+
+    if (cmd === "ajuda") {
+      const embed = criarEmbed(
+        "📚 Central de comandos — YSIS MC",
+        "Veja as funções disponíveis para você."
+      )
+        .addFields(
+          {
+            name: "🌐 Geral",
+            value:
+              "/ip /site /servidor /avatar /perfil /ajuda",
+          },
+          {
+            name: "💰 Economia",
+            value:
+              "/daily /saldo /trabalhar /pagar /top /apostar",
+          },
+          {
+            name: "🛒 Loja e aventuras",
+            value:
+              "/loja /comprar /inventario /vender /pescar /aventura",
+          },
+          {
+            name: "🎉 Diversão",
+            value:
+              "/moeda /dado /pergunta /ship /banho",
+          },
+          {
+            name: "🛡️ Moderação",
+            value:
+              "/limpar /expulsar /banir /timeout /avisar /avisos /limparavisos /lock /unlock /dizer /anunciar",
+          },
+          {
+            name: "🎫 Atendimento",
+            value: "/ticket /fecharticket",
+          }
+        );
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // --------------------------------------
+    // INFORMAÇÕES
+    // --------------------------------------
+
+    if (cmd === "ip") {
+      const embed = criarEmbed(
+        "⛏️ IP do YSIS MC",
+        **Endereço:** \{IP}\`\n**Porta:** \`{PORT}`\n\n + &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📌 Se o servidor não estiver disponível, confira o painel do Aternos:\n${ATERNOS}`
+      );
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (cmd === "site") {
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "🌐 Site do YSIS MC",
+            Acesse nosso site:\n${SITE}
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "servidor") {
+      const guild = interaction.guild;
+
+      const embed = criarEmbed(
+        🌍 ${guild.name},
+        **Membros:** ${guild.memberCount}\n +
+        **Criado em:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>\n +
+        **Dono:** <@${guild.ownerId}>
+      );
+
+      if (guild.iconURL()) {
+        embed.setThumbnail(guild.iconURL());
+      }
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (cmd === "avatar") {
+      const usuario =
+        interaction.options.getUser("usuario") || interaction.user;
+
+Grok
+
+Trabalhou por 15s
+Aqui está uma versão bem melhorada do seu bot YSIS MC, inspirada na Loritta (economia rica, diversão social, moderação completa e engajamento).
+
+Principais melhorias feitas:
+Economia muito mais completa: banco (/depositar e /sacar), daily com streak, ranking de XP + moedas, inventário com quantidades.
+Novos comandos de diversão/social (estilo Loritta): /abracar, /beijar, /tapa, /casar, /divorciar, /rate.
+Temática Minecraft reforçada: /minerar, mais itens da loja, mensagens mais temáticas.
+Código mais limpo e seguro: tratamento de erros melhor, validações mais rígidas, cooldowns consistentes.
+Estrutura melhor: funções auxiliares organizadas, embeds mais bonitos, footer padronizado.
+Moderação e tickets mantidos e refinados.
+XP automático mantido + ranking de nível.
+O código estava incompleto no final (parou no /avatar), então completei tudo e adicionei bastante conteúdo novo.
+
+const {
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  REST,
+  Routes,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ChannelType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+// ==========================================
+// CONFIGURAÇÃO DO YSIS MC
+// ==========================================
+
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
+
+const IP = process.env.MINECRAFT_IP || "YSISmc.aternos.me";
+const PORT = process.env.MINECRAFT_PORT || "50061";
+const SITE = process.env.SITE_URL || "https://bit.ly/YsisMc";
+const ATERNOS = process.env.ATERNOS_URL || "https://aternos.org/server/";
+
+const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
+const GOODBYE_CHANNEL_ID = process.env.GOODBYE_CHANNEL_ID;
+
+if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
+  console.error("ERRO: configure DISCORD_TOKEN, CLIENT_ID e GUILD_ID nas variáveis de ambiente.");
+  process.exit(1);
+}
+
+// ==========================================
+// BANCO DE DADOS EM JSON
+// ==========================================
+
+const DATA_FILE = path.join(process.cwd(), "ysis-data.json");
+
+let data = {
+  users: {},
+  warns: {},
+  marriages: {}, // novo: sistema de casamento
+};
+
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const carregado = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    data = {
+      users: carregado.users || {},
+      warns: carregado.warns || {},
+      marriages: carregado.marriages || {},
+    };
+  }
+} catch (error) {
+  console.error("Erro ao carregar banco de dados:", error);
+}
+
+function salvarDados() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+  } catch (error) {
+    console.error("Erro ao salvar dados:", error);
+  }
+}
+
+function obterUsuario(id) {
+  if (!data.users[id]) {
+    data.users[id] = {
+      coins: 100,
+      bank: 0,
+      inventory: {},
+      xp: 0,
+      lastDaily: 0,
+      dailyStreak: 0,
+      lastWork: 0,
+      lastAdventure: 0,
+      lastFish: 0,
+      lastMine: 0,
+      lastXP: 0,
+    };
+  }
+
+  const user = data.users[id];
+
+  // Migração / segurança
+  if (typeof user.coins !== "number") user.coins = 100;
+  if (typeof user.bank !== "number") user.bank = 0;
+  if (Array.isArray(user.inventory)) {
+    // converte inventário antigo (array) para objeto com quantidades
+    const novo = {};
+    for (const item of user.inventory) {
+      novo[item] = (novo[item] || 0) + 1;
+    }
+    user.inventory = novo;
+  }
+  if (typeof user.inventory !== "object" || user.inventory === null) user.inventory = {};
+  if (typeof user.xp !== "number") user.xp = 0;
+  if (typeof user.dailyStreak !== "number") user.dailyStreak = 0;
+
+  user.lastDaily ||= 0;
+  user.lastWork ||= 0;
+  user.lastAdventure ||= 0;
+  user.lastFish ||= 0;
+  user.lastMine ||= 0;
+  user.lastXP ||= 0;
+
+  return user;
+}
+
+function numeroAleatorio(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function formatarTempo(ms) {
+  const totalMinutos = Math.ceil(ms / 60000);
+  const horas = Math.floor(totalMinutos / 60);
+  const minutos = totalMinutos % 60;
+
+  if (horas > 0) return `${horas}h ${minutos}min`;
+  return `${minutos}min`;
+}
+
+function criarEmbed(titulo, descricao, cor = 0x55ff55) {
+  return new EmbedBuilder()
+    .setColor(cor)
+    .setTitle(titulo)
+    .setDescription(descricao)
+    .setFooter({ text: "YSIS MC • Feito com ❤️ para a comunidade" })
+    .setTimestamp();
+}
+
+function barraProgresso(atual, total) {
+  const tamanho = 10;
+  const porcentagem = total > 0 ? Math.min(1, atual / total) : 0;
+  const preenchidos = Math.floor(porcentagem * tamanho);
+  return "🟩".repeat(preenchidos) + "⬛".repeat(tamanho - preenchidos);
+}
+
+function nivelDo(xp) {
+  return Math.floor(Math.sqrt(Math.max(0, xp) / 100));
+}
+
+function xpParaProximoNivel(nivel) {
+  return (nivel + 1) ** 2 * 100;
+}
+
+// ==========================================
+// LOJA DO YSIS MC (expandida)
+// ==========================================
+
+const loja = {
+  cafe: { nome: "Café", emoji: "☕", preco: 15, descricao: "Recupera a energia.", unico: false, venda: 8 },
+  espada: { nome: "Espada de Diamante", emoji: "⚔️", preco: 250, descricao: "Uma espada poderosa.", unico: true, venda: 120 },
+  picareta: { nome: "Picareta de Diamante", emoji: "⛏️", preco: 200, descricao: "Melhor para minerar.", unico: true, venda: 100 },
+  escudo: { nome: "Escudo", emoji: "🛡️", preco: 150, descricao: "Proteção extra.", unico: true, venda: 75 },
+  diamante: { nome: "Diamante", emoji: "💎", preco: 180, descricao: "Material valioso.", unico: false, venda: 100 },
+  peixe: { nome: "Peixe", emoji: "🐟", preco: 25, descricao: "Peixe fresco.", unico: false, venda: 15 },
+  esmeralda: { nome: "Esmeralda", emoji: "💚", preco: 300, descricao: "Moeda dos villagers.", unico: false, venda: 160 },
+  netherite: { nome: "Fragmento de Netherite", emoji: "🔥", preco: 500, descricao: "Material lendário.", unico: false, venda: 280 },
+  elytra: { nome: "Elytra", emoji: "🪽", preco: 1200, descricao: "Asas para voar!", unico: true, venda: 600 },
+};
+
+function nomeItem(item) {
+  return loja[item] ? `${loja[item].emoji} ${loja[item].nome}` : item;
+}
+
+// ==========================================
+// COMANDOS SLASH (completos e expandidos)
+// ==========================================
+
+const comandos = [
+  // GERAIS
+  new SlashCommandBuilder().setName("ajuda").setDescription("Veja todos os comandos do YSIS MC."),
+  new SlashCommandBuilder().setName("ip").setDescription("Veja o IP do servidor Minecraft."),
+  new SlashCommandBuilder().setName("site").setDescription("Veja o site do YSIS MC."),
+  new SlashCommandBuilder().setName("servidor").setDescription("Informações deste servidor Discord."),
+  new SlashCommandBuilder()
+    .setName("avatar")
+    .setDescription("Veja o avatar de alguém.")
+    .addUserOption(o => o.setName("usuario").setDescription("Pessoa").setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("perfil")
+    .setDescription("Veja seu perfil completo (saldo, nível, inventário, casamento...).")
+    .addUserOption(o => o.setName("usuario").setDescription("Perfil de outra pessoa").setRequired(false)),
+
+  // ECONOMIA
+  new SlashCommandBuilder().setName("daily").setDescription("Receba suas moedas diárias (+ streak!)."),
+  new SlashCommandBuilder()
+    .setName("saldo")
+    .setDescription("Veja seu saldo (carteira + banco).")
+    .addUserOption(o => o.setName("usuario").setDescription("Saldo de outra pessoa").setRequired(false)),
+  new SlashCommandBuilder().setName("trabalhar").setDescription("Trabalhe e ganhe moedas."),
+  new SlashCommandBuilder()
+    .setName("pagar")
+    .setDescription("Envie moedas para outra pessoa.")
+    .addUserOption(o => o.setName("usuario").setDescription("Quem vai receber").setRequired(true))
+    .addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("depositar")
+    .setDescription("Deposite moedas no banco.")
+    .addIntegerOption(o => o.setName("quantia").setDescription("Quantidade (ou 'tudo')").setMinValue(1).setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("sacar")
+    .setDescription("Saque moedas do banco.")
+    .addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)),
+  new SlashCommandBuilder().setName("top").setDescription("Ranking de moedas e nível."),
+  new SlashCommandBuilder()
+    .setName("apostar")
+    .setDescription("Aposte e tente dobrar suas moedas.")
+    .addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)),
+
+  // LOJA & AVENTURAS
+  new SlashCommandBuilder().setName("loja").setDescription("Veja os itens disponíveis."),
+  new SlashCommandBuilder()
+    .setName("comprar")
+    .setDescription("Compre um item na loja.")
+    .addStringOption(o =>
+      o.setName("item")
+        .setDescription("Item")
+        .setRequired(true)
+        .addChoices(
+          ...Object.entries(loja).map(([key, item]) => ({
+            name: `${item.emoji} ${item.nome} — ${item.preco} moedas`,
+            value: key,
+          }))
+        )
+    ),
+  new SlashCommandBuilder()
+    .setName("inventario")
+    .setDescription("Veja seu inventário.")
+    .addUserOption(o => o.setName("usuario").setDescription("Inventário de outra pessoa").setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("vender")
+    .setDescription("Venda um item do inventário.")
+    .addStringOption(o =>
+      o.setName("item")
+        .setDescription("Item")
+        .setRequired(true)
+        .addChoices(...Object.entries(loja).map(([key, item]) => ({ name: `${item.emoji} ${item.nome}`, value: key })))
+    )
+    .addIntegerOption(o => o.setName("quantidade").setDescription("Quantidade").setMinValue(1).setRequired(false)),
+  new SlashCommandBuilder().setName("pescar").setDescription("Pesque peixes e ganhe recompensas."),
+  new SlashCommandBuilder().setName("aventura").setDescription("Explore o mundo e encontre tesouros."),
+  new SlashCommandBuilder().setName("minerar").setDescription("Mine blocos e encontre diamantes!"),
+
+  // DIVERSÃO / SOCIAL (estilo Loritta)
+  new SlashCommandBuilder().setName("moeda").setDescription("Jogue uma moeda."),
+  new SlashCommandBuilder().setName("dado").setDescription("Role um dado de 6 lados."),
+  new SlashCommandBuilder()
+    .setName("pergunta")
+    .setDescription("Pergunte à bola mágica 8.")
+    .addStringOption(o => o.setName("texto").setDescription("Sua pergunta").setMaxLength(300).setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("ship")
+    .setDescription("Veja a compatibilidade entre duas pessoas.")
+    .addUserOption(o => o.setName("pessoa1").setDescription("Primeira pessoa").setRequired(true))
+    .addUserOption(o => o.setName("pessoa2").setDescription("Segunda pessoa").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("abracar")
+    .setDescription("Dê um abraço em alguém.")
+    .addUserOption(o => o.setName("usuario").setDescription("Quem vai receber o abraço").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("beijar")
+    .setDescription("Dê um beijo em alguém.")
+    .addUserOption(o => o.setName("usuario").setDescription("Quem vai receber o beijo").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("tapa")
+    .setDescription("Dê um tapa em alguém.")
+    .addUserOption(o => o.setName("usuario").setDescription("Quem vai levar o tapa").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("casar")
+    .setDescription("Peça alguém em casamento.")
+    .addUserOption(o => o.setName("usuario").setDescription("Quem você quer casar").setRequired(true)),
+  new SlashCommandBuilder().setName("divorciar").setDescription("Divorcie-se do seu parceiro atual."),
+  new SlashCommandBuilder()
+    .setName("rate")
+    .setDescription("Avalie algo ou alguém de 0 a 10.")
+    .addStringOption(o => o.setName("texto").setDescription("O que avaliar").setRequired(true)),
+
+  // MODERAÇÃO
+  new SlashCommandBuilder()
+    .setName("limpar")
+    .setDescription("Apague mensagens do canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o => o.setName("quantidade").setDescription("1 a 100").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("expulsar")
+    .setDescription("Expulse um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+    .addUserOption(o => o.setName("usuario").setDescription("Membro").setRequired(true))
+    .addStringOption(o => o.setName("motivo").setDescription("Motivo").setMaxLength(500).setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("banir")
+    .setDescription("Bane um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addUserOption(o => o.setName("usuario").setDescription("Membro").setRequired(true))
+    .addStringOption(o => o.setName("motivo").setDescription("Motivo").setMaxLength(500).setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("timeout")
+    .setDescription("Silencie temporariamente um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName("usuario").setDescription("Membro").setRequired(true))
+    .addIntegerOption(o => o.setName("minutos").setDescription("Duração em minutos").setMinValue(1).setMaxValue(40320).setRequired(true))
+    .addStringOption(o => o.setName("motivo").setDescription("Motivo").setMaxLength(500).setRequired(false)),
+  new SlashCommandBuilder()
+    .setName("avisar")
+    .setDescription("Dê uma advertência.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName("usuario").setDescription("Membro").setRequired(true))
+    .addStringOption(o => o.setName("motivo").setDescription("Motivo").setMaxLength(500).setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("avisos")
+    .setDescription("Veja as advertências de um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName("usuario").setDescription("Membro").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("limparavisos")
+    .setDescription("Limpe todas as advertências de um membro.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName("usuario").setDescription("Membro").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("lock")
+    .setDescription("Bloqueie o canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+  new SlashCommandBuilder()
+    .setName("unlock")
+    .setDescription("Desbloqueie o canal.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+  new SlashCommandBuilder()
+    .setName("dizer")
+    .setDescription("Faça o bot enviar uma mensagem.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o => o.setName("texto").setDescription("Mensagem").setMaxLength(1800).setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("anunciar")
+    .setDescription("Publique um anúncio.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o => o.setName("titulo").setDescription("Título").setMaxLength(200).setRequired(true))
+    .addStringOption(o => o.setName("texto").setDescription("Conteúdo").setMaxLength(3500).setRequired(true))
+    .addChannelOption(o => o.setName("canal").setDescription("Canal").addChannelTypes(ChannelType.GuildText).setRequired(false)),
+
+  // TICKETS
+  new SlashCommandBuilder().setName("ticket").setDescription("Abra um ticket de atendimento."),
+  new SlashCommandBuilder().setName("fecharticket").setDescription("Feche o ticket atual."),
+];
+
+// ==========================================
+// CLIENTE
+// ==========================================
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent, // necessário para XP
+  ],
+});
+
+// ==========================================
+// REGISTRAR COMANDOS
+// ==========================================
+
+client.once("ready", async () => {
+  console.log(`✅ ${client.user.tag} está online!`);
+
+  try {
+    const rest = new REST({ version: "10" }).setToken(TOKEN);
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+      body: comandos.map(c => c.toJSON()),
+    });
+    console.log(`✅ ${comandos.length} comandos registrados.`);
+  } catch (error) {
+    console.error("Erro ao registrar comandos:", error);
+  }
+});
+
+// ==========================================
+// BOAS-VINDAS E DESPEDIDA
+// ==========================================
+
+client.on("guildMemberAdd", async membro => {
+  try {
+    const canal =
+      (WELCOME_CHANNEL_ID && membro.guild.channels.cache.get(WELCOME_CHANNEL_ID)) ||
+      membro.guild.systemChannel;
+
+    if (!canal?.isTextBased()) return;
+
+    const embed = criarEmbed(
+      "👋 Bem-vindo(a) ao YSIS MC!",
+      `Olá, ${membro}! Seja muito bem-vindo(a) ao **${membro.guild.name}**!\n\n` +
+        `🎮 **IP do Minecraft:** \`${IP}:${PORT}\`\n` +
+        `🌐 **Site:** ${SITE}\n\n` +
+        `📜 Leia as regras e divirta-se bastante!`
+    ).setThumbnail(membro.user.displayAvatarURL({ size: 256 }));
+
+    await canal.send({ embeds: [embed] });
+  } catch (error) {
+    console.error("Erro na mensagem de boas-vindas:", error);
+  }
+});
+
+client.on("guildMemberRemove", async membro => {
+  try {
+    const canal =
+      (GOODBYE_CHANNEL_ID && membro.guild.channels.cache.get(GOODBYE_CHANNEL_ID)) ||
+      membro.guild.systemChannel;
+
+    if (!canal?.isTextBased()) return;
+
+    await canal.send(`👋 **${membro.user.username}** saiu do servidor. Até a próxima!`);
+  } catch (error) {
+    console.error("Erro na mensagem de despedida:", error);
+  }
+});
+
+// ==========================================
+// XP AUTOMÁTICO
+// ==========================================
+
+client.on("messageCreate", async message => {
+  if (!message.guild || message.author.bot) return;
+
+  const user = obterUsuario(message.author.id);
+  const agora = Date.now();
+
+  if (agora - user.lastXP < 60000) return;
+
+  const nivelAntigo = nivelDo(user.xp);
+  user.xp += numeroAleatorio(10, 18);
+  user.lastXP = agora;
+  const nivelNovo = nivelDo(user.xp);
+
+  salvarDados();
+
+  if (nivelNovo > nivelAntigo) {
+    try {
+      await message.channel.send(
+        `🎉 Parabéns, ${message.author}! Você subiu para o **nível ${nivelNovo}**!`
+      );
+    } catch {}
+  }
+});
+
+// ==========================================
+// HANDLER DE INTERAÇÕES
+// ==========================================
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const cmd = interaction.commandName;
+  const agora = Date.now();
+
+  try {
+    // ---------- AJUDA ----------
+    if (cmd === "ajuda") {
+      const embed = criarEmbed("📚 Central de Comandos — YSIS MC", "Todos os comandos disponíveis:")
+        .addFields(
+          { name: "🌐 Geral", value: "`/ajuda` `/ip` `/site` `/servidor` `/avatar` `/perfil`", inline: false },
+          { name: "💰 Economia", value: "`/daily` `/saldo` `/trabalhar` `/pagar` `/depositar` `/sacar` `/top` `/apostar`", inline: false },
+          { name: "🛒 Loja & Aventuras", value: "`/loja` `/comprar` `/inventario` `/vender` `/pescar` `/aventura` `/minerar`", inline: false },
+          { name: "🎉 Diversão & Social", value: "`/moeda` `/dado` `/pergunta` `/ship` `/abracar` `/beijar` `/tapa` `/casar` `/divorciar` `/rate`", inline: false },
+          { name: "🛡️ Moderação", value: "`/limpar` `/expulsar` `/banir` `/timeout` `/avisar` `/avisos` `/limparavisos` `/lock` `/unlock` `/dizer` `/anunciar`", inline: false },
+          { name: "🎫 Tickets", value: "`/ticket` `/fecharticket`", inline: false }
+        );
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // ---------- INFORMAÇÕES ----------
+    if (cmd === "ip") {
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "⛏️ IP do YSIS MC",
+            `**Endereço:** \`${IP}\`\n**Porta:** \`${PORT}\`\n\n` +
+              `Se o servidor estiver offline, confira o painel:\n${ATERNOS}`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "site") {
+      return interaction.reply({
+        embeds: [criarEmbed("🌐 Site do YSIS MC", `Acesse nosso site oficial:\n${SITE}`)],
+      });
+    }
+
+    if (cmd === "servidor") {
+      const guild = interaction.guild;
+      const embed = criarEmbed(
+        `🌍 ${guild.name}`,
+        `**Membros:** ${guild.memberCount}\n` +
+          `**Criado em:** <t:${Math.floor(guild.createdTimestamp / 1000)}:D>\n` +
+          `**Dono:** <@${guild.ownerId}>`
+      );
+      if (guild.iconURL()) embed.setThumbnail(guild.iconURL({ size: 256 }));
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (cmd === "avatar") {
+      const usuario = interaction.options.getUser("usuario") || interaction.user;
+      const embed = criarEmbed(`🖼️ Avatar de ${usuario.username}`, null)
+        .setImage(usuario.displayAvatarURL({ size: 1024, extension: "png" }));
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (cmd === "perfil") {
+      const alvo = interaction.options.getUser("usuario") || interaction.user;
+      const user = obterUsuario(alvo.id);
+      const nivel = nivelDo(user.xp);
+      const xpAtual = user.xp - nivel ** 2 * 100;
+      const xpProx = xpParaProximoNivel(nivel) - nivel ** 2 * 100;
+
+      let casamento = "Solteiro(a)";
+      const conjugeId = data.marriages[alvo.id];
+      if (conjugeId) {
+        casamento = `Casado(a) com <@${conjugeId}>`;
+      }
+
+      const inventárioTexto =
+        Object.keys(user.inventory).length === 0
+          ? "Vazio"
+          : Object.entries(user.inventory)
+              .map(([item, qtd]) => `${nomeItem(item)} x${qtd}`)
+              .join("\n");
+
+      const embed = criarEmbed(
+        `👤 Perfil de ${alvo.username}`,
+        `**Nível:** ${nivel} ${barraProgresso(xpAtual, xpProx)}\n` +
+          `**XP:** ${user.xp}\n` +
+          `**Carteira:** 💰 ${user.coins.toLocaleString("pt-BR")}\n` +
+          `**Banco:** 🏦 ${user.bank.toLocaleString("pt-BR")}\n` +
+          `**Total:** ${(user.coins + user.bank).toLocaleString("pt-BR")}\n` +
+          `**Streak Daily:** ${user.dailyStreak} dias\n` +
+          `**Estado civil:** ${casamento}`
+      )
+        .setThumbnail(alvo.displayAvatarURL({ size: 256 }))
+        .addFields({ name: "🎒 Inventário", value: inventárioTexto.slice(0, 1024) || "Vazio" });
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // ---------- ECONOMIA ----------
+    if (cmd === "daily") {
+      const user = obterUsuario(interaction.user.id);
+      const cooldown = 24 * 60 * 60 * 1000;
+
+      if (agora - user.lastDaily < cooldown) {
+        const restante = cooldown - (agora - user.lastDaily);
+        return interaction.reply({
+          embeds: [criarEmbed("⏰ Daily já resgatado", `Volte em **${formatarTempo(restante)}**.`, 0xff5555)],
+          ephemeral: true,
+        });
+      }
+
+      // Streak
+      const ontem = agora - cooldown - 2 * 60 * 60 * 1000; // tolerância de 2h
+      if (user.lastDaily > ontem) {
+        user.dailyStreak += 1;
+      } else {
+        user.dailyStreak = 1;
+      }
+
+      const bonus = Math.min(user.dailyStreak * 15, 150);
+      const ganho = 80 + numeroAleatorio(20, 60) + bonus;
+
+      user.coins += ganho;
+      user.lastDaily = agora;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "🎁 Daily resgatado!",
+            `Você recebeu **${ganho}** moedas!\n` +
+              `Streak atual: **${user.dailyStreak}** dias (+${bonus} bônus)`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "saldo") {
+      const alvo = interaction.options.getUser("usuario") || interaction.user;
+      const user = obterUsuario(alvo.id);
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            `💰 Saldo de ${alvo.username}`,
+            `**Carteira:** ${user.coins.toLocaleString("pt-BR")} moedas\n` +
+              `**Banco:** ${user.bank.toLocaleString("pt-BR")} moedas\n` +
+              `**Total:** ${(user.coins + user.bank).toLocaleString("pt-BR")} moedas`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "trabalhar") {
+      const user = obterUsuario(interaction.user.id);
+      const cooldown = 45 * 60 * 1000;
+
+      if (agora - user.lastWork < cooldown) {
+        return interaction.reply({
+          embeds: [
+            criarEmbed(
+              "⏳ Ainda cansado...",
+              `Você pode trabalhar novamente em **${formatarTempo(cooldown - (agora - user.lastWork))}**.`,
+              0xff5555
+            ),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      const trabalhos = [
+        { nome: "minerador", ganho: [40, 90] },
+        { nome: "fazendeiro", ganho: [30, 70] },
+        { nome: "pescador", ganho: [35, 80] },
+        { nome: "construtor", ganho: [50, 100] },
+        { nome: "vendedor de itens", ganho: [45, 95] },
+      ];
+      const trabalho = trabalhos[numeroAleatorio(0, trabalhos.length - 1)];
+      const ganho = numeroAleatorio(...trabalho.ganho);
+
+      user.coins += ganho;
+      user.lastWork = agora;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💼 Trabalho concluído!",
+            `Você trabalhou como **${trabalho.nome}** e ganhou **${ganho}** moedas!`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "pagar") {
+      const alvo = interaction.options.getUser("usuario");
+      const quantia = interaction.options.getInteger("quantia");
+      const user = obterUsuario(interaction.user.id);
+      const alvoUser = obterUsuario(alvo.id);
+
+      if (alvo.id === interaction.user.id) {
+        return interaction.reply({ content: "Você não pode pagar a si mesmo.", ephemeral: true });
+      }
+      if (user.coins < quantia) {
+        return interaction.reply({ content: "Você não tem moedas suficientes.", ephemeral: true });
+      }
+
+      user.coins -= quantia;
+      alvoUser.coins += quantia;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💸 Pagamento realizado!",
+            `${interaction.user} enviou **${quantia}** moedas para ${alvo}.`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "depositar") {
+      const quantia = interaction.options.getInteger("quantia");
+      const user = obterUsuario(interaction.user.id);
+
+      if (user.coins < quantia) {
+        return interaction.reply({ content: "Você não tem essa quantia na carteira.", ephemeral: true });
+      }
+
+      user.coins -= quantia;
+      user.bank += quantia;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [criarEmbed("🏦 Depósito realizado", `Você depositou **${quantia}** moedas no banco.`)],
+      });
+    }
+
+    if (cmd === "sacar") {
+      const quantia = interaction.options.getInteger("quantia");
+      const user = obterUsuario(interaction.user.id);
+
+      if (user.bank < quantia) {
+        return interaction.reply({ content: "Você não tem essa quantia no banco.", ephemeral: true });
+      }
+
+      user.bank -= quantia;
+      user.coins += quantia;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [criarEmbed("🏦 Saque realizado", `Você sacou **${quantia}** moedas do banco.`)],
+      });
+    }
+
+    if (cmd === "top") {
+      const usuarios = Object.entries(data.users)
+        .map(([id, u]) => ({
+          id,
+          total: (u.coins || 0) + (u.bank || 0),
+          xp: u.xp || 0,
+          nivel: nivelDo(u.xp || 0),
+        }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10);
+
+      const texto = usuarios
+        .map((u, i) => `**${i + 1}.** <@${u.id}> — 💰 ${u.total.toLocaleString("pt-BR")} | Nível ${u.nivel}`)
+        .join("\n") || "Ninguém ainda.";
+
+      return interaction.reply({
+        embeds: [criarEmbed("🏆 Ranking de Riqueza", texto)],
+      });
+    }
+
+    if (cmd === "apostar") {
+      const quantia = interaction.options.getInteger("quantia");
+      const user = obterUsuario(interaction.user.id);
+
+      if (user.coins < quantia) {
+        return interaction.reply({ content: "Você não tem moedas suficientes.", ephemeral: true });
+      }
+
+      const ganhou = Math.random() < 0.48; // ligeiramente a favor da casa
+      if (ganhou) {
+        user.coins += quantia;
+        salvarDados();
+        return interaction.reply({
+          embeds: [criarEmbed("🎉 Você ganhou!", `Parabéns! Você dobrou e agora tem **+${quantia}** moedas.`)],
+        });
+      } else {
+        user.coins -= quantia;
+        salvarDados();
+        return interaction.reply({
+          embeds: [criarEmbed("😢 Você perdeu...", `Perdeu **${quantia}** moedas. Tente novamente!`, 0xff5555)],
+        });
+      }
+    }
+
+    // ---------- LOJA & AVENTURAS ----------
+    if (cmd === "loja") {
+      const itens = Object.entries(loja)
+        .map(([key, item]) => `${item.emoji} **${item.nome}** — ${item.preco} moedas\n*${item.descricao}*`)
+        .join("\n\n");
+
+      return interaction.reply({
+        embeds: [criarEmbed("🛒 Loja do YSIS MC", itens)],
+      });
+    }
+
+    if (cmd === "comprar") {
+      const itemKey = interaction.options.getString("item");
+      const item = loja[itemKey];
+      const user = obterUsuario(interaction.user.id);
+
+      if (!item) return interaction.reply({ content: "Item inválido.", ephemeral: true });
+      if (user.coins < item.preco) {
+        return interaction.reply({ content: "Você não tem moedas suficientes.", ephemeral: true });
+      }
+      if (item.unico && user.inventory[itemKey]) {
+        return interaction.reply({ content: "Você já possui este item único.", ephemeral: true });
+      }
+
+      user.coins -= item.preco;
+      user.inventory[itemKey] = (user.inventory[itemKey] || 0) + 1;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "✅ Compra realizada!",
+            `Você comprou **${nomeItem(itemKey)}** por **${item.preco}** moedas.`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "inventario") {
+      const alvo = interaction.options.getUser("usuario") || interaction.user;
+      const user = obterUsuario(alvo.id);
+
+      const texto =
+        Object.keys(user.inventory).length === 0
+          ? "Inventário vazio."
+          : Object.entries(user.inventory)
+              .map(([item, qtd]) => `${nomeItem(item)} × ${qtd}`)
+              .join("\n");
+
+      return interaction.reply({
+        embeds: [criarEmbed(`🎒 Inventário de ${alvo.username}`, texto)],
+      });
+    }
+
+    if (cmd === "vender") {
+      const itemKey = interaction.options.getString("item");
+      const quantidade = interaction.options.getInteger("quantidade") || 1;
+      const item = loja[itemKey];
+      const user = obterUsuario(interaction.user.id);
+
+      if (!item) return interaction.reply({ content: "Item inválido.", ephemeral: true });
+      if (!user.inventory[itemKey] || user.inventory[itemKey] < quantidade) {
+        return interaction.reply({ content: "Você não possui essa quantidade do item.", ephemeral: true });
+      }
+
+      const valor = (item.venda || Math.floor(item.preco * 0.5)) * quantidade;
+      user.inventory[itemKey] -= quantidade;
+      if (user.inventory[itemKey] <= 0) delete user.inventory[itemKey];
+      user.coins += valor;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💰 Venda realizada!",
+            `Você vendeu **${quantidade}x ${nomeItem(itemKey)}** por **${valor}** moedas.`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "pescar") {
+      const user = obterUsuario(interaction.user.id);
+      const cooldown = 20 * 60 * 1000;
+
+      if (agora - user.lastFish < cooldown) {
+        return interaction.reply({
+          embeds: [
+            criarEmbed(
+              "🎣 Aguarde um pouco",
+              `Você pode pescar novamente em **${formatarTempo(cooldown - (agora - user.lastFish))}**.`,
+              0xff5555
+            ),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      const resultados = [
+        { texto: "Você pescou um peixe comum!", item: "peixe", chance: 0.55 },
+        { texto: "Você pescou um peixe raro e ganhou moedas extras!", coins: [30, 70], chance: 0.25 },
+        { texto: "Você encontrou um diamante no fundo do lago!", item: "diamante", chance: 0.12 },
+        { texto: "Nada... só um peixe de plástico.", coins: [5, 15], chance: 0.08 },
+      ];
+
+      let sorte = Math.random();
+      let resultado = resultados[0];
+      let acumulado = 0;
+      for (const r of resultados) {
+        acumulado += r.chance;
+        if (sorte <= acumulado) {
+          resultado = r;
+          break;
+        }
+      }
+
+      let msg = resultado.texto;
+      if (resultado.item) {
+        user.inventory[resultado.item] = (user.inventory[resultado.item] || 0) + 1;
+        msg += `\nVocê recebeu **${nomeItem(resultado.item)}**!`;
+      }
+      if (resultado.coins) {
+        const ganho = numeroAleatorio(...resultado.coins);
+        user.coins += ganho;
+        msg += `\n+**${ganho}** moedas!`;
+      }
+
+      user.lastFish = agora;
+      salvarDados();
+
+      return interaction.reply({ embeds: [criarEmbed("🎣 Pescaria", msg)] });
+    }
+
+    if (cmd === "aventura") {
+      const user = obterUsuario(interaction.user.id);
+      const cooldown = 35 * 60 * 1000;
+
+      if (agora - user.lastAdventure < cooldown) {
+        return interaction.reply({
+          embeds: [
+            criarEmbed(
+              "🗺️ Ainda explorando...",
+              `Você pode aventurar novamente em **${formatarTempo(cooldown - (agora - user.lastAdventure))}**.`,
+              0xff5555
+            ),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      const eventos = [
+        { texto: "Você encontrou um baú escondido!", coins: [60, 140] },
+        { texto: "Você derrotou um monstro e coletou loot!", coins: [40, 100], item: "espada" },
+        { texto: "Você descobriu uma mina abandonada!", coins: [80, 160], item: "diamante" },
+        { texto: "Você se perdeu e voltou com pouco...", coins: [15, 40] },
+        { texto: "Você encontrou uma esmeralda brilhante!", item: "esmeralda" },
+      ];
+
+      const evento = eventos[numeroAleatorio(0, eventos.length - 1)];
+      let msg = evento.texto;
+
+      if (evento.coins) {
+        const ganho = numeroAleatorio(...evento.coins);
+        user.coins += ganho;
+        msg += `\n+**${ganho}** moedas!`;
+      }
+      if (evento.item && !loja[evento.item]?.unico || !user.inventory[evento.item]) {
+        user.inventory[evento.item] = (user.inventory[evento.item] || 0) + 1;
+        msg += `\nVocê recebeu **${nomeItem(evento.item)}**!`;
+      }
+
+      user.lastAdventure = agora;
+      salvarDados();
+
+      return interaction.reply({ embeds: [criarEmbed("🗺️ Aventura", msg)] });
+    }
+
+    if (cmd === "minerar") {
+      const user = obterUsuario(interaction.user.id);
+      const cooldown = 25 * 60 * 1000;
+
+      if (agora - user.lastMine < cooldown) {
+        return interaction.reply({
+          embeds: [
+            criarEmbed(
+              "⛏️ Picareta cansada",
+              `Você pode minerar novamente em **${formatarTempo(cooldown - (agora - user.lastMine))}**.`,
+              0xff5555
+            ),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      const resultados = [
+        { texto: "Você minerou carvão e ferro.", coins: [25, 55] },
+        { texto: "Você encontrou ouro!", coins: [50, 90] },
+        { texto: "Você achou um veio de diamantes!", item: "diamante", coins: [30, 60] },
+        { texto: "Você encontrou netherite!", item: "netherite" },
+        { texto: "Só pedra... mas ainda vale algo.", coins: [10, 25] },
+      ];
+
+      const resultado = resultados[numeroAleatorio(0, resultados.length - 1)];
+      let msg = resultado.texto;
+
+      if (resultado.coins) {
+        const ganho = numeroAleatorio(...resultado.coins);
+        user.coins += ganho;
+        msg += `\n+**${ganho}** moedas!`;
+      }
+      if (resultado.item) {
+        user.inventory[resultado.item] = (user.inventory[resultado.item] || 0) + 1;
+        msg += `\nVocê recebeu **${nomeItem(resultado.item)}**!`;
+      }
+
+      user.lastMine = agora;
+      salvarDados();
+
+      return interaction.reply({ embeds: [criarEmbed("⛏️ Mineração", msg)] });
+    }
+
+    // ---------- DIVERSÃO / SOCIAL ----------
+    if (cmd === "moeda") {
+      const lado = Math.random() < 0.5 ? "Cara" : "Coroa";
+      return interaction.reply({ embeds: [criarEmbed("🪙 Moeda", `Deu **${lado}**!`)] });
+    }
+
+    if (cmd === "dado") {
+      const valor = numeroAleatorio(1, 6);
+      return interaction.reply({ embeds: [criarEmbed("🎲 Dado", `Você tirou **${valor}**!`)] });
+    }
+
+    if (cmd === "pergunta") {
+      const respostas = [
+        "Com certeza!",
+        "Definitivamente sim.",
+        "Sem dúvida.",
+        "Sim, com certeza.",
+        "Pode contar com isso.",
+        "Pelo que vejo, sim.",
+        "Provavelmente.",
+        "As perspectivas são boas.",
+        "Sim.",
+        "Os sinais apontam que sim.",
+        "Resposta confusa, tente de novo.",
+        "Pergunte mais tarde.",
+        "Melhor não te dizer agora.",
+        "Não posso prever agora.",
+        "Concentre-se e pergunte novamente.",
+        "Não conte com isso.",
+        "Minha resposta é não.",
+        "Minhas fontes dizem não.",
+        "As perspectivas não são boas.",
+        "Muito duvidoso.",
+      ];
+      const resposta = respostas[numeroAleatorio(0, respostas.length - 1)];
+      const pergunta = interaction.options.getString("texto");
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "🎱 Bola Mágica",
+            `**Pergunta:** ${pergunta}\n**Resposta:** ${resposta}`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "ship") {
+      const p1 = interaction.options.getUser("pessoa1");
+      const p2 = interaction.options.getUser("pessoa2");
+      const porcentagem = numeroAleatorio(0, 100);
+
+      let frase = "Talvez só amizade...";
+      if (porcentagem >= 90) frase = "Casamento marcado! 💍";
+      else if (porcentagem >= 70) frase = "Química forte!";
+      else if (porcentagem >= 40) frase = "Tem potencial...";
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💘 Ship",
+            `${p1} + ${p2}\n\n**${porcentagem}%** de compatibilidade\n${frase}`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "abracar") {
+      const alvo = interaction.options.getUser("usuario");
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "🤗 Abraço",
+            `${interaction.user} deu um abraço apertado em ${alvo}!`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "beijar") {
+      const alvo = interaction.options.getUser("usuario");
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💋 Beijo",
+            `${interaction.user} deu um beijo em ${alvo}! 💕`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "tapa") {
+      const alvo = interaction.options.getUser("usuario");
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "👋 Tapa",
+            `${interaction.user} deu um tapa em ${alvo}! 💥`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "casar") {
+      const alvo = interaction.options.getUser("usuario");
+      if (alvo.id === interaction.user.id) {
+        return interaction.reply({ content: "Você não pode casar consigo mesmo.", ephemeral: true });
+      }
+      if (data.marriages[interaction.user.id] || data.marriages[alvo.id]) {
+        return interaction.reply({ content: "Um de vocês já está casado.", ephemeral: true });
+      }
+
+      // Sistema simples de pedido (aceita automaticamente por simplicidade)
+      data.marriages[interaction.user.id] = alvo.id;
+      data.marriages[alvo.id] = interaction.user.id;
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💍 Casamento!",
+            `${interaction.user} e ${alvo} agora estão casados! Parabéns! 🎉`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "divorciar") {
+      const conjugeId = data.marriages[interaction.user.id];
+      if (!conjugeId) {
+        return interaction.reply({ content: "Você não está casado.", ephemeral: true });
+      }
+
+      delete data.marriages[interaction.user.id];
+      delete data.marriages[conjugeId];
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "💔 Divórcio",
+            `${interaction.user} se divorciou de <@${conjugeId}>.`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "rate") {
+      const texto = interaction.options.getString("texto");
+      const nota = numeroAleatorio(0, 10);
+      return interaction.reply({
+        embeds: [criarEmbed("⭐ Avaliação", `**${texto}**\nNota: **${nota}/10**`)],
+      });
+    }
+
+    // ---------- MODERAÇÃO ----------
+    if (cmd === "limpar") {
+      const quantidade = interaction.options.getInteger("quantidade");
+      await interaction.channel.bulkDelete(quantidade, true);
+      return interaction.reply({
+        content: `🧹 **${quantidade}** mensagens apagadas.`,
+        ephemeral: true,
+      });
+    }
+
+    if (cmd === "expulsar") {
+      const alvo = interaction.options.getUser("usuario");
+      const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
+      const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
+
+      if (!membro) return interaction.reply({ content: "Membro não encontrado.", ephemeral: true });
+      if (!membro.kickable) return interaction.reply({ content: "Não posso expulsar este membro.", ephemeral: true });
+
+      await membro.kick(motivo);
+      return interaction.reply({
+        embeds: [criarEmbed("👢 Membro expulso", `${alvo} foi expulso.\n**Motivo:** ${motivo}`)],
+      });
+    }
+
+    if (cmd === "banir") {
+      const alvo = interaction.options.getUser("usuario");
+      const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
+      const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
+
+      if (membro && !membro.bannable) {
+        return interaction.reply({ content: "Não posso banir este membro.", ephemeral: true });
+      }
+
+      await interaction.guild.members.ban(alvo.id, { reason: motivo });
+      return interaction.reply({
+        embeds: [criarEmbed("🔨 Membro banido", `${alvo} foi banido.\n**Motivo:** ${motivo}`)],
+      });
+    }
+
+    if (cmd === "timeout") {
+      const alvo = interaction.options.getUser("usuario");
+      const minutos = interaction.options.getInteger("minutos");
+      const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
+      const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
+
+      if (!membro) return interaction.reply({ content: "Membro não encontrado.", ephemeral: true });
+      if (!membro.moderatable) return interaction.reply({ content: "Não posso silenciar este membro.", ephemeral: true });
+
+      await membro.timeout(minutos * 60 * 1000, motivo);
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "🔇 Timeout aplicado",
+            `${alvo} foi silenciado por **${minutos} minutos**.\n**Motivo:** ${motivo}`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "avisar") {
+      const alvo = interaction.options.getUser("usuario");
+      const motivo = interaction.options.getString("motivo");
+
+      if (!data.warns[alvo.id]) data.warns[alvo.id] = [];
+      data.warns[alvo.id].push({
+        motivo,
+        moderador: interaction.user.id,
+        data: Date.now(),
+      });
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [
+          criarEmbed(
+            "⚠️ Advertência registrada",
+            `${alvo} recebeu uma advertência.\n**Motivo:** ${motivo}\n**Total de avisos:** ${data.warns[alvo.id].length}`
+          ),
+        ],
+      });
+    }
+
+    if (cmd === "avisos") {
+      const alvo = interaction.options.getUser("usuario");
+      const avisos = data.warns[alvo.id] || [];
+
+      if (avisos.length === 0) {
+        return interaction.reply({
+          embeds: [criarEmbed("📋 Advertências", `${alvo} não possui advertências.`)],
+        });
+      }
+
+      const texto = avisos
+        .map(
+          (a, i) =>
+            `**${i + 1}.** ${a.motivo}\n*Por <@${a.moderador}> em <t:${Math.floor(a.data / 1000)}:d>*`
+        )
+        .join("\n\n");
+
+      return interaction.reply({
+        embeds: [criarEmbed(`📋 Advertências de ${alvo.username}`, texto)],
+      });
+    }
+
+    if (cmd === "limparavisos") {
+      const alvo = interaction.options.getUser("usuario");
+      data.warns[alvo.id] = [];
+      salvarDados();
+
+      return interaction.reply({
+        embeds: [criarEmbed("✅ Avisos limpos", `Todas as advertências de ${alvo} foram removidas.`)],
+      });
+    }
+
+    if (cmd === "lock") {
+      await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
+        SendMessages: false,
+      });
+      return interaction.reply({ embeds: [criarEmbed("🔒 Canal bloqueado", "Ninguém mais pode enviar mensagens neste canal.")] });
+    }
+
+    if (cmd === "unlock") {
+      await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
+        SendMessages: null,
+      });
+      return interaction.reply({ embeds: [criarEmbed("🔓 Canal desbloqueado", "O canal foi liberado novamente.")] });
+    }
+
+    if (cmd === "dizer") {
+      const texto = interaction.options.getString("texto");
+      await interaction.reply({ content: "Mensagem enviada!", ephemeral: true });
+      await interaction.channel.send(texto);
+    }
+
+    if (cmd === "anunciar") {
+      const titulo = interaction.options.getString("titulo");
+      const texto = interaction.options.getString("texto");
+      const canal = interaction.options.getChannel("canal") || interaction.channel;
+
+      const embed = criarEmbed(titulo, texto, 0xffaa00);
+      await canal.send({ embeds: [embed] });
+      return interaction.reply({ content: "Anúncio publicado!", ephemeral: true });
+    }
+
+    // ---------- TICKETS ----------
+    if (cmd === "ticket") {
+      const nomeCanal = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "");
+      const existente = interaction.guild.channels.cache.find(
+        c => c.name === nomeCanal && c.type === ChannelType.GuildText
+      );
+
+      if (existente) {
+        return interaction.reply({ content: `Você já tem um ticket aberto: ${existente}`, ephemeral: true });
+      }
+
+      const canal = await interaction.guild.channels.create({
+        name: nomeCanal,
+        type: ChannelType.GuildText,
+        parent: interaction.channel.parentId,
+        permissionOverwrites: [
+          { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+          { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        ],
+      });
+
+      await canal.send({
+        content: `${interaction.user}`,
+        embeds: [
+          criarEmbed(
+            "🎫 Ticket aberto",
+            "Explique seu problema ou dúvida. A equipe irá te atender em breve.\n\nUse `/fecharticket` para fechar."
+          ),
+        ],
+      });
+
+      return interaction.reply({ content: `Ticket criado: ${canal}`, ephemeral: true });
+    }
+
+    if (cmd === "fecharticket") {
+      if (!interaction.channel.name.startsWith("ticket-")) {
+        return interaction.reply({ content: "Este comando só funciona em canais de ticket.", ephemeral: true });
+      }
+
+      await interaction.reply({ content: "Ticket será fechado em 5 segundos..." });
+      setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
+    }
+  } catch (error) {
+    console.error(`Erro no comando ${cmd}:`, error);
+    const msg = { content: "Ocorreu um erro ao executar este comando.", ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(msg).catch(() => {});
+    } else {
+      await interaction.reply(msg).catch(() => {});
+    }
+  }
+});
+
+client.login(TOKEN);
