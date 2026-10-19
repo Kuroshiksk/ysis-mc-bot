@@ -16,6 +16,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const TOKEN = process.env.DISCORD_TOKEN;
+const OWNER_USER_ID = process.env.OWNER_USER_ID || "";
+const OWNER_USERNAME = (process.env.OWNER_USERNAME || "kuroshikk").toLowerCase();
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 const IP = process.env.MINECRAFT_IP || "YSISmc.aternos.me";
@@ -109,7 +111,10 @@ function user(id) {
       bio: "Ainda escrevendo minha história no YSIS MC.",
       frame: "azul",
       ownedFrames: ["azul"],
-      featuredUntil: 0
+      featuredUntil: 0,
+      reputation: 0,
+      lastRep: 0,
+      lastHunt: 0
     };
   }
 
@@ -125,7 +130,10 @@ function user(id) {
     lastAdventure: 0,
     lastFish: 0,
     lastMine: 0,
-    lastXP: 0
+    lastXP: 0,
+    reputation: 0,
+    lastRep: 0,
+    lastHunt: 0
   })) {
     if (typeof u[k] !== "number" || !Number.isFinite(u[k])) {
       u[k] = v;
@@ -144,6 +152,23 @@ function user(id) {
   return u;
 }
 
+const achievementCatalog = [
+  { id: "primeiros_passos", name: "Primeiros Passos", icon: "🌱", desc: "Alcance o nível 1.", test: p => level(p.xp) >= 1 },
+  { id: "veterano", name: "Veterano", icon: "🎖️", desc: "Alcance o nível 10.", test: p => level(p.xp) >= 10 },
+  { id: "lenda", name: "Lenda do YSIS", icon: "👑", desc: "Alcance o nível 25.", test: p => level(p.xp) >= 25 },
+  { id: "rico", name: "Mão de Ouro", icon: "💰", desc: "Junte 10.000 moedas na carteira e no banco.", test: p => p.coins + p.bank >= 10000 },
+  { id: "colecionador", name: "Colecionador", icon: "🎒", desc: "Tenha 5 tipos de itens no inventário.", test: p => Object.keys(p.inventory || {}).filter(k => p.inventory[k] > 0).length >= 5 },
+  { id: "sequencia", name: "Constância", icon: "🔥", desc: "Consiga uma sequência diária de 7 dias.", test: p => p.dailyStreak >= 7 },
+  { id: "estiloso", name: "Estiloso", icon: "🖼️", desc: "Desbloqueie uma moldura além da clássica.", test: p => (p.ownedFrames || []).some(f => f !== "azul") },
+  { id: "social", name: "Perfil Completo", icon: "✨", desc: "Escreva uma biografia personalizada.", test: p => Boolean(p.bio && !p.bio.startsWith("Ainda escrevendo")) },
+  { id: "popular", name: "Queridinho da Comunidade", icon: "💖", desc: "Receba 10 pontos de reputação.", test: p => (p.reputation || 0) >= 10 }
+];
+function unlockedAchievements(profile) { return achievementCatalog.filter(a => a.test(profile)); }
+function isOwner(interaction) {
+  const id = interaction?.user?.id;
+  const username = String(interaction?.user?.username || "").toLowerCase();
+  return Boolean((OWNER_USER_ID && id === OWNER_USER_ID) || username === OWNER_USERNAME);
+}
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const fmt = n => Number(n || 0).toLocaleString("pt-BR");
 const level = xp => Math.floor(Math.sqrt(Math.max(0, xp) / 100));
@@ -206,10 +231,10 @@ function panelCanUse(memberPermissions, member, commandName, cfg) {
 
 const panelSections = {
   geral: { title: "🏠 Central do YSIS MC", intro: "Comandos essenciais para conhecer e usar o servidor.", commands: ["/ajuda — abre esta central", "/ip — endereço e porta do Minecraft", "/site — links oficiais", "/servidor — informações do Discord", "/avatar — veja um avatar", "/perfil — seu perfil personalizado"] },
-  economia: { title: "💰 Economia", intro: "Ganhe, guarde e movimente seu saldo. Os valores são salvos pelo bot.", commands: ["/daily — recompensa diária e sequência", "/trabalhar — receba pelo trabalho", "/saldo — carteira e banco", "/pagar — transfira para outro membro", "/depositar — guarde no banco", "/sacar — retire do banco", "/top — ranking de riqueza", "/pescar — procure recompensas", "/aventura — exploração com recompensa", "/minerar — encontre recursos", "/moeda — cara ou coroa", "/dado — role um dado"] },
+  economia: { title: "💰 Economia", intro: "Ganhe, guarde e movimente seu saldo. Os valores são salvos pelo bot.", commands: ["/daily — recompensa diária e sequência", "/trabalhar — receba pelo trabalho", "/saldo — carteira e banco", "/pagar — transfira para outro membro", "/depositar — guarde no banco", "/sacar — retire do banco", "/top — ranking de riqueza", "/rankxp — ranking de XP", "/cacar — caça por recompensas", "/pescar — procure recompensas", "/aventura — exploração com recompensa", "/minerar — encontre recursos", "/moeda — cara ou coroa", "/dado — role um dado"] },
   loja: { title: "🛍️ Lojas e pedidos", intro: "Use a economia para adquirir cargos e itens. Pedidos Minecraft precisam ser entregues pela equipe no jogo.", commands: ["/loja — ofertas de cargos do Discord", "/comprarcargo — compre um cargo", "/lojajogo — catálogo Minecraft", "/comprarjogo — abra um pedido de item", "/inventario — seus itens", "/vender — venda itens do inventário", "/anunciarloja — publicar no canal configurado", "/promocao — publicar promoção no canal configurado"] },
   social: { title: "🎮 Social e diversão", intro: "Comandos leves para interagir com a comunidade.", commands: ["/pergunta — consulte a bola mágica", "/ship — compatibilidade divertida", "/abracar — envie um abraço", "/beijar — mande um beijo", "/tapa — tapa de brincadeira", "/casar — peça em casamento", "/divorciar — encerre o casamento", "/rate — avaliação aleatória", "/ticket — abra atendimento privado"] },
-  perfil: { title: "✨ Perfil e personalização", intro: "Deixe seu perfil com a sua cara. Molduras podem ser compradas com a moeda do servidor.", commands: ["/perfil — veja seu perfil", "/biografia — edite sua descrição", "/molduras — veja a coleção", "/comprarmoldura — desbloqueie uma moldura", "/usarmoldura — equipe uma moldura", "/destacarperfil — destaque por 24 horas", "/destaques — veja os perfis destacados"] },
+  perfil: { title: "✨ Perfil e personalização", intro: "Deixe seu perfil com a sua cara. Molduras podem ser compradas com a moeda do servidor.", commands: ["/perfil — veja seu perfil", "/conquistas — acompanhe suas conquistas", "/insignias — veja suas insígnias", "/biografia — edite sua descrição", "/molduras — veja a coleção", "/comprarmoldura — desbloqueie uma moldura", "/usarmoldura — equipe uma moldura", "/destacarperfil — destaque por 24 horas", "/destaques — veja os perfis destacados", "/rep — dê reputação a um membro"] },
   equipe: { title: "🛡️ Painel da equipe", intro: "Estas opções aparecem aqui conforme as permissões do seu cargo. Use sempre os comandos de moderação com responsabilidade.", commands: ["/promover — atribua um cargo autorizado", "/rebaixar — remova um cargo autorizado", "/cargo — administre cargos", "/configequipe — configure cargos de promoção/suporte", "/configmoeda — defina o nome e emoji da moeda", "/adicionarmoedas — credite saldo", "/removermoedas — retire saldo", "/setarmoedas — defina saldo exato", "/configcanais — selecione canais da loja/promoções", "/configurar — boas-vindas, saídas e logs", "/configloja — edite a loja de cargos", "/anunciar — anúncio geral", "/limpar — apague mensagens", "/expulsar — expulse um membro", "/banir — bane um membro", "/timeout — timeout temporário", "/avisar — registre advertência", "/avisos — consulte advertências", "/limparavisos — limpe advertências", "/lock e /unlock — bloqueie/libere um canal", "/pedidosjogo — veja pedidos pendentes", "/concluirpedido — confirme entrega", "/cancelarpedido — cancele e devolva saldo", "/dizer — envie texto como bot", "/fecharticket — feche um ticket"] }
 };
 
@@ -220,7 +245,7 @@ function buildPanelEmbed(sectionKey, interaction) {
   const visible = section.commands.filter(line => {
     const match = line.match(/^\/(\w+)/);
     if (!match) return true;
-    return panelCanUse(interaction.memberPermissions, member, match[1], cfg);
+    return isOwner(interaction) || panelCanUse(interaction.memberPermissions, member, match[1], cfg);
   });
   return em(section.title, `${section.intro}
 
@@ -275,6 +300,8 @@ add(new SlashCommandBuilder().setName("site").setDescription("Veja o site do YSI
 add(new SlashCommandBuilder().setName("servidor").setDescription("Informações do servidor Discord."));
 add(new SlashCommandBuilder().setName("avatar").setDescription("Veja um avatar.").addUserOption(o => o.setName("usuario").setDescription("Pessoa").setRequired(false)));
 add(new SlashCommandBuilder().setName("perfil").setDescription("Veja seu perfil personalizado.").addUserOption(o => o.setName("usuario").setDescription("Perfil para consultar").setRequired(false)));
+add(new SlashCommandBuilder().setName("conquistas").setDescription("Veja suas conquistas desbloqueadas.").addUserOption(o => o.setName("usuario").setDescription("Pessoa para consultar").setRequired(false)));
+add(new SlashCommandBuilder().setName("insignias").setDescription("Veja as insígnias do perfil.").addUserOption(o => o.setName("usuario").setDescription("Pessoa para consultar").setRequired(false)));
 add(new SlashCommandBuilder().setName("biografia").setDescription("Edite a descrição do seu perfil.").addStringOption(o => o.setName("texto").setDescription("Descrição curta do perfil").setMaxLength(180).setRequired(true)));
 add(new SlashCommandBuilder().setName("molduras").setDescription("Veja molduras de perfil disponíveis."));
 add(new SlashCommandBuilder().setName("destaques").setDescription("Veja os perfis que estão em destaque."));
@@ -288,6 +315,9 @@ add(new SlashCommandBuilder().setName("pagar").setDescription("Envie moedas.").a
 add(new SlashCommandBuilder().setName("depositar").setDescription("Deposite moedas no banco.").addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)));
 add(new SlashCommandBuilder().setName("sacar").setDescription("Saque moedas do banco.").addIntegerOption(o => o.setName("quantia").setDescription("Quantidade").setMinValue(1).setRequired(true)));
 add(new SlashCommandBuilder().setName("top").setDescription("Ranking de saldo total."));
+add(new SlashCommandBuilder().setName("rankxp").setDescription("Veja o ranking de experiência e níveis."));
+add(new SlashCommandBuilder().setName("rep").setDescription("Dê reputação a alguém (uma vez a cada 24 horas). ").addUserOption(o => o.setName("usuario").setDescription("Pessoa que merece reputação").setRequired(true)));
+add(new SlashCommandBuilder().setName("cacar").setDescription("Vá caçar e tente encontrar moedas e XP."));
 for (const [name, desc] of [["adicionarmoedas", "Adicione saldo a um membro."], ["removermoedas", "Retire saldo da carteira de um membro."], ["setarmoedas", "Defina o saldo exato da carteira de um membro."]]) {
   add(new SlashCommandBuilder().setName(name).setDescription(desc).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption(o => o.setName("usuario").setDescription("Membro alvo").setRequired(true))
@@ -365,6 +395,9 @@ add(new SlashCommandBuilder().setName("anunciarloja").setDescription("Publique n
 add(new SlashCommandBuilder().setName("promocao").setDescription("Publique uma promoção no canal configurado.").setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages).addStringOption(o => o.setName("titulo").setDescription("Título da promoção").setRequired(true).setMaxLength(200)).addStringOption(o => o.setName("texto").setDescription("Descreva a promoção").setRequired(true).setMaxLength(3500)).addChannelOption(o => o.setName("canal").setDescription("Sobrescrever canal configurado (opcional)").addChannelTypes(ChannelType.GuildText).setRequired(false)));
 add(new SlashCommandBuilder().setName("ticket").setDescription("Abra ticket privado."));
 add(new SlashCommandBuilder().setName("fecharticket").setDescription("Feche o ticket atual."));
+
+// O Discord não deve esconder comandos administrativos: as permissões são verificadas pelo bot, com exceção do dono configurado.
+for (const command of cmd) command.default_member_permissions = null;
 
 const client = new Client({
   intents: [
@@ -500,11 +533,11 @@ function cooldown(u, key, ms) {
 client.on("interactionCreate", async i => {
   if (i.isButton() && i.customId.startsWith("ysispanel:")) {
     const section = i.customId.split(":")[1];
-    if (section === "equipe" && !canPromote(i.member, guildConfig(i.guild.id), i.memberPermissions) && !i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    if (section === "equipe" && !isOwner(i) && !canPromote(i.member, guildConfig(i.guild.id), i.memberPermissions) && !i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       return i.reply({ content: "🔒 Esta categoria é exclusiva da equipe autorizada.", ephemeral: true });
     }
     const rows = [panelButtons()];
-    if (canPromote(i.member, guildConfig(i.guild.id), i.memberPermissions) || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) rows.push(panelStaffButtons());
+    if (isOwner(i) || canPromote(i.member, guildConfig(i.guild.id), i.memberPermissions) || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) rows.push(panelStaffButtons());
     return i.update({ embeds: [buildPanelEmbed(section, i)], components: rows }).catch(() => {});
   }
   if (i.isAutocomplete()) {
@@ -561,12 +594,12 @@ client.on("interactionCreate", async i => {
       promocao: PermissionFlagsBits.ManageMessages
     };
     const needed = requiredPermissions[name];
-    if (needed && !i.memberPermissions?.has(needed) && !i.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    if (needed && !isOwner(i) && !i.memberPermissions?.has(needed) && !i.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
       return reply("⛔ Você não tem permissão para usar este comando.", true);
     }
     if (name === "ajuda" || name === "painel") {
       const rows = [panelButtons()];
-      if (canPromote(i.member, guildConfig(i.guild.id), i.memberPermissions) || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) rows.push(panelStaffButtons());
+      if (isOwner(i) || canPromote(i.member, guildConfig(i.guild.id), i.memberPermissions) || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) rows.push(panelStaffButtons());
       return i.reply({ ephemeral: true, embeds: [buildPanelEmbed("geral", i)], components: rows });
     }
 
@@ -615,10 +648,21 @@ ${fmt(p.xp)} XP`, inline: true },
           { name: "💰 Carteira", value: moneyText(i.guild.id, p.coins), inline: true },
           { name: "🏦 Banco", value: moneyText(i.guild.id, p.bank), inline: true },
           { name: "💍 Relacionamento", value: marriedTo, inline: true },
+          { name: "💖 Reputação", value: fmt(p.reputation || 0), inline: true },
           { name: "🖼️ Moldura", value: currentFrame.name, inline: true },
-          { name: "✨ Status", value: featured, inline: true }
+          { name: "✨ Status", value: featured, inline: true },
+          { name: `🏅 Conquistas (${unlockedAchievements(p).length}/${achievementCatalog.length})`, value: unlockedAchievements(p).map(a => `${a.icon} ${a.name}`).join(" • ") || "Nenhuma ainda — use os comandos e evolua para desbloquear!", inline: false }
         )
         .setFooter({ text: `YSIS MC • ID ${target.id}` });
+      return i.reply({ embeds: [embed], ephemeral: target.id === me.id });
+    }
+
+    if (name === "conquistas" || name === "insignias") {
+      const target = i.options.getUser("usuario") || me;
+      const p = user(target.id);
+      const unlocked = unlockedAchievements(p);
+      const description = achievementCatalog.map(a => `${a.test(p) ? "🏅" : "🔒"} ${a.icon} **${a.name}** — ${a.desc}${a.test(p) ? " *(desbloqueada)*" : ""}`).join("\n");
+      const embed = em(`${name === "insignias" ? "🏵️ Insígnias" : "🏆 Conquistas"} • ${target.username}`, `**Desbloqueadas:** ${unlocked.length}/${achievementCatalog.length}\n\n${description}`, 0xf1c40f).setThumbnail(target.displayAvatarURL({ size: 512 }));
       return i.reply({ embeds: [embed], ephemeral: target.id === me.id });
     }
 
@@ -766,6 +810,50 @@ Motivo: ${reason}`, true);
           )
         ]
       });
+    }
+
+    if (name === "rankxp") {
+      const rows = Object.entries(data.users)
+        .sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0))
+        .slice(0, 10);
+      const desc = rows.map(([id, profile], idx) => `**${idx + 1}.** <@${id}> — nível **${level(profile.xp || 0)}** · ${fmt(profile.xp || 0)} XP`).join("\n");
+      return i.reply({ embeds: [em("🌠 Ranking de experiência", desc || "Ainda não há jogadores no ranking.", 0x9b59b6)] });
+    }
+
+    if (name === "rep") {
+      const target = i.options.getUser("usuario");
+      if (target.bot || target.id === me.id) return reply("❌ Escolha outra pessoa, não você mesmo nem um bot.", true);
+      const targetProfile = user(target.id);
+      const wait = 86400000 - (Date.now() - u.lastRep);
+      if (wait > 0) return reply(`⏳ Você já deu reputação hoje. Tente novamente em ${Math.ceil(wait / 3600000)} hora(s).`, true);
+      targetProfile.reputation = (targetProfile.reputation || 0) + 1;
+      u.lastRep = Date.now();
+      save();
+      return i.reply({ embeds: [em("💖 Reputação enviada!", `${me} deu +1 de reputação para ${target}.\nReputação atual de ${target.username}: **${targetProfile.reputation}**.`, 0xe84393)] });
+    }
+
+    if (name === "cacar") {
+      const left = cooldown(u, "lastHunt", 1800000);
+      if (left) return reply(`🏹 Você precisa descansar. Volte em ${Math.ceil(left / 60000)} minuto(s).`, true);
+      u.lastHunt = Date.now();
+      const roll = rand(1, 100);
+      let reward = 0;
+      let xpGain = rand(8, 18);
+      let result;
+      if (roll <= 12) {
+        reward = 0;
+        result = "A caça escapou! Você ganhou XP pela experiência, mas não encontrou moedas.";
+      } else if (roll >= 92) {
+        reward = rand(180, 280);
+        result = `🏆 Caça lendária! Você encontrou ${moneyText(i.guild.id, reward)}.`;
+      } else {
+        reward = rand(35, 100);
+        result = `🐇 Boa caçada! Você encontrou ${moneyText(i.guild.id, reward)}.`;
+      }
+      u.coins += reward;
+      u.xp += xpGain;
+      save();
+      return i.reply({ embeds: [em("🏹 Expedição de caça", `${result}\n✨ Você ganhou **${xpGain} XP**.\n💰 Carteira: ${moneyText(i.guild.id, u.coins)}`, 0x27ae60)] });
     }
 
     if (name === "loja") {
