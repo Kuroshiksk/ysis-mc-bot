@@ -1,15 +1,16 @@
 {
-  "name": "ysis-mc-discord-bot",
-  "version": "1.0.0",
-  "description": "Bot Discord do YSIS MC",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "dependencies": {
-    "discord.js": "^14.19.3"
-  }
+"name": "ysis-mc-discord-bot",
+"version": "1.0.0",
+"description": "Bot Discord do YSIS MC",
+"main": "index.js",
+"scripts": {
+"start": "node index.js"
+},
+"engines": {
+"node": ">=20"
+},
+"dependencies": {
+"discord.js": "^14.19.3",
+"@discordjs/voice": "^0.17.0"
+}
 }
