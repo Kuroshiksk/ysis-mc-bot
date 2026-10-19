@@ -1,20 +1,69 @@
-{
-  "name": "ysis-mc-discord-bot",
-  "version": "1.0.0",
-  "description": "Bot Discord do YSIS MC",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "check": "node --check index.js"
-  },
-  "engines": {
-    "node": ">=20 <23"
-  },
-  "dependencies": {
-    "discord.js": "^14.19.3",
-    "@discordjs/voice": "^0.17.0",
-    "play-dl": "^1.9.7",
-    "@napi-rs/canvas": "^0.1.70",
-    "openai": "^5.12.2"
-  }
-}
+# YSIS MC Bot
+
+Bot Discord completo para o servidor YSIS MC (economia, perfil visual, loja, IA, música e moderação).
+
+## O que foi corrigido nesta versão
+
+- **Perfil (`/perfil`)**: cartão redesenhado (fundo azul estilizado, avatar com anel da moldura, nível/XP, insígnias, mascote e biografia).
+- **IA (`/falar` e `/imagem`)**: timeouts, tratamento de erro e modelo de imagem padrão `dall-e-3` (em vez de `gpt-image-1` inválido). As respostas não devem mais ficar eternamente em “pensando”.
+- **Música (`/music` / `/pararmusic`)**: stream mais robusto e limpeza de sessão anterior.
+- **Dados**: gravação atômica do `ysis-data.json` (menos risco de corromper o arquivo no restart).
+
+## Variáveis de ambiente (Railway)
+
+Obrigatórias:
+- `DISCORD_TOKEN`
+- `CLIENT_ID`
+- `GUILD_ID`
+
+Recomendadas:
+- `OWNER_USER_ID` — ID do dono (bypass de permissões)
+- `OWNER_USERNAME` — fallback por username (padrão: kuroshikk)
+- `OPENAI_API_KEY` — para `/falar` e `/imagem`
+- `AI_MODEL` — padrão `gpt-4o-mini`
+- `IMAGE_MODEL` — padrão `dall-e-3`
+- `MUSIC_AUTOPLAY_URL` — URL opcional para autoplay quando o dono entra na call
+- `MINECRAFT_IP`, `MINECRAFT_PORT`, `SITE_URL`, `ATERNOS_URL`
+- `LOG_CHANNEL_ID`, `WELCOME_CHANNEL_ID`, `GOODBYE_CHANNEL_ID`
+
+## Persistência de dados no Railway
+
+O bot grava `ysis-data.json` no diretório de trabalho.  
+No Railway o filesystem **é efêmero** por padrão: a cada redeploy os dados somem.
+
+Para manter economia, avisos, casamentos etc.:
+
+1. Crie um **Volume** no Railway e monte em `/data` (ou outro path).
+2. Defina a variável (opcional, se quiser path custom):  
+   no código o path é `process.cwd()/ysis-data.json`.  
+   Se montar o volume em `/app` ou mudar o working dir, o arquivo passa a persistir.
+
+Sem volume, use apenas para testes.
+
+## Dependências de voz
+
+Para música funcionar no Railway (Linux):
+
+```bash
+npm install
+```
+
+Inclui `opusscript` e `libsodium-wrappers` (não precisa de FFmpeg nativo para o fluxo básico do play-dl + @discordjs/voice).
+
+Se o stream de YouTube falhar com frequência, o YouTube pode estar bloqueando o IP do Railway — nesse caso use links do SoundCloud ou configure cookies no play-dl (avançado).
+
+## Deploy
+
+1. Suba esta pasta no GitHub.
+2. Conecte no Railway → New Project → Deploy from GitHub.
+3. Adicione as variáveis de ambiente.
+4. (Opcional) Monte volume para persistir `ysis-data.json`.
+5. Deploy. Os slash commands registram no `ready` (guild).
+
+## Comandos principais
+
+- `/perfil` — cartão visual personalizado
+- `/falar` — conversa com IA
+- `/imagem` — gera imagem (precisa de crédito OpenAI)
+- `/music` / `/pararmusic`
+- Economia, loja Minecraft, tickets, moderação, etc. (veja `/ajuda`)
